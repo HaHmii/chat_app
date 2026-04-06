@@ -1,0 +1,7 @@
+.idea
+scraper
+PDF File
+rocketchat-server/data
+*.txt
+backend/.env
+backend/law-data
