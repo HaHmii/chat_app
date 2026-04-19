@@ -5,3 +5,6 @@ rocketchat-server/data
 *.txt
 backend/.env
 backend/law-data
+backend/app_services/.env
+*/*/__pycache__/
+*/*/*/__pycache__/

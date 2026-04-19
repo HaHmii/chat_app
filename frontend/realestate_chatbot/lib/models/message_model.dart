@@ -1,3 +1,5 @@
+import '../config/app_config.dart';
+
 class MessageModel {
   final String id;
   final String text;
@@ -5,6 +7,7 @@ class MessageModel {
   final String senderUsername;
   final DateTime createdAt;
   final bool isBot;
+  final bool isMe;
 
   MessageModel({
     required this.id,
@@ -13,29 +16,32 @@ class MessageModel {
     required this.senderUsername,
     required this.createdAt,
     required this.isBot,
+    required this.isMe,
   });
 
   factory MessageModel.fromJson(Map<String, dynamic> json, String botUsername) {
     final username = json['u']?['username'] ?? '';
+    final senderId = json['u']?['_id'] ?? '';
 
-    // Xử lý timestamp — Rocket.chat trả về 2 format khác nhau
+    // Xử lý timestamp — Rocket.chat trả về nhiều định dạng
     DateTime parsedTime;
     final ts = json['ts'];
     if (ts is Map && ts['\$date'] != null) {
       parsedTime = DateTime.fromMillisecondsSinceEpoch(ts['\$date'], isUtc: true).toLocal();
     } else if (ts is String) {
       parsedTime = DateTime.tryParse(ts)?.toLocal() ?? DateTime.now();
-    } else {
+    } else {  
       parsedTime = DateTime.now();
     }
 
     return MessageModel(
       id             : json['_id'] ?? '',
       text           : json['msg'] ?? '',
-      senderId       : json['u']?['_id'] ?? '',
+      senderId       : senderId,
       senderUsername : username,
       createdAt      : parsedTime,
       isBot          : username == botUsername,
+      isMe           : senderId == AppConfig.userId,
     );
   }
 }

@@ -1,0 +1,775 @@
+import 'package:flutter/material.dart';
+import '../models/property_model.dart';
+import '../services/property_service.dart';
+import '../config/app_config.dart';
+import 'ai_consultant_screen.dart';
+import 'profile_screen.dart';
+import 'review_screen.dart';
+
+class MainScreen extends StatefulWidget {
+  const MainScreen({super.key});
+
+  @override
+  State<MainScreen> createState() => _MainScreenState();
+}
+
+class _MainScreenState extends State<MainScreen> {
+  int _selectedIndex = 0;
+  String _selectedType = 'sell';
+  final PropertyService _propertyService = PropertyService();
+  late Future<List<Property>> _futureProperties;
+  final _reviewKey = GlobalKey<ReviewScreenState>();
+
+  bool get isOwner => AppConfig.role == 'owner';
+  bool get isAdmin => AppConfig.role == 'admin';
+  int get _profileIndex => isAdmin ? 3 : 2;
+  int get _reviewIndex => 1;
+
+  String get _appBarTitle {
+    if (isAdmin && _selectedIndex == 1) return 'Duyệt tin';
+    if (isOwner) return 'Quản lý & Tư vấn';
+    return 'Bất động sản Hà Nội';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchData();
+  }
+
+  void _fetchData() {
+    setState(() {
+      _futureProperties = _propertyService.getProperties(type: _selectedType);
+    });
+  }
+
+  Future<void> _refreshData() async {
+    _fetchData();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      backgroundColor: colorScheme.surfaceContainerHighest,
+      appBar: _selectedIndex == _profileIndex
+          ? null
+          : AppBar(
+              title: Text(
+                _appBarTitle,
+                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+              centerTitle: false,
+              backgroundColor: colorScheme.primary,
+              iconTheme: const IconThemeData(color: Colors.white),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.search),
+                  onPressed: () => _showComingSoon(context, 'Tìm kiếm'),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.filter_list),
+                  onPressed: () => _showComingSoon(context, 'Bộ lọc'),
+                ),
+              ],
+            ),
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: [
+          _buildHomeTab(colorScheme),
+          if (isAdmin) ReviewScreen(key: _reviewKey),
+          const Center(child: Text("Màn hình Lịch hẹn (Coming Soon)")),
+          const ProfileScreen(),
+        ],
+      ),
+      floatingActionButton: _selectedIndex == _profileIndex
+          ? null
+          : Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (isOwner && _selectedIndex == 0) ...[
+                  FloatingActionButton.extended(
+                    heroTag: 'add_prop',
+                    onPressed: () => _showAddPropertyDialog(context),
+                    backgroundColor: Colors.green[700],
+                    foregroundColor: Colors.white,
+                    icon: const Icon(Icons.add_business),
+                    label: const Text('Đăng Tin', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                FloatingActionButton.extended(
+                  heroTag: 'ai_chat',
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const AiConsultantScreen()),
+                    );
+                  },
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: Colors.white,
+                  icon: const Icon(Icons.auto_awesome),
+                  label: const Text('AI Tư Vấn', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: (int index) {
+          if (isAdmin && index == _reviewIndex && _selectedIndex != _reviewIndex) {
+            _reviewKey.currentState?.reload();
+          }
+          setState(() => _selectedIndex = index);
+        },
+        indicatorColor: colorScheme.primary.withOpacity(0.2),
+        destinations: [
+          const NavigationDestination(
+            icon: Icon(Icons.explore_outlined),
+            selectedIcon: Icon(Icons.explore),
+            label: 'Khám phá',
+          ),
+          if (isAdmin)
+            const NavigationDestination(
+              icon: Icon(Icons.rate_review_outlined),
+              selectedIcon: Icon(Icons.rate_review),
+              label: 'Duyệt tin',
+            ),
+          const NavigationDestination(
+            icon: Icon(Icons.calendar_month_outlined),
+            selectedIcon: Icon(Icons.calendar_month),
+            label: 'Lịch hẹn',
+          ),
+          const NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: 'Cá nhân',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHomeTab(ColorScheme colorScheme) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<String>(
+              segments: const [
+                ButtonSegment<String>(
+                  value: 'sell',
+                  label: Text('Mua Nhà', style: TextStyle(fontWeight: FontWeight.bold)),
+                  icon: Icon(Icons.sell_outlined),
+                ),
+                ButtonSegment<String>(
+                  value: 'rent',
+                  label: Text('Thuê Nhà', style: TextStyle(fontWeight: FontWeight.bold)),
+                  icon: Icon(Icons.key_outlined),
+                ),
+              ],
+              selected: {_selectedType},
+              onSelectionChanged: (Set<String> newSelection) {
+                setState(() {
+                  _selectedType = newSelection.first;
+                  _fetchData();
+                });
+              },
+              style: SegmentedButton.styleFrom(
+                selectedBackgroundColor: colorScheme.primary,
+                selectedForegroundColor: Colors.white,
+                backgroundColor: Colors.white,
+                foregroundColor: colorScheme.primary,
+                side: BorderSide(color: colorScheme.primary),
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _refreshData,
+            child: FutureBuilder<List<Property>>(
+              future: _futureProperties,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return Center(child: CircularProgressIndicator(color: colorScheme.primary));
+                }
+                if (snapshot.hasError) {
+                  return _buildErrorState(snapshot.error.toString());
+                }
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return _buildEmptyState();
+                }
+                final properties = snapshot.data!;
+                return ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  itemCount: properties.length,
+                  itemBuilder: (context, index) => PropertyCard(property: properties[index]),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showAddPropertyDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _AddPropertyDialog(
+        propertyService: _propertyService,
+        onSuccess: () {
+          _refreshData();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Đăng tin thành công, vui lòng chờ duyệt.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showComingSoon(BuildContext context, String feature) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Chức năng $feature đang phát triển')),
+    );
+  }
+
+  Widget _buildErrorState(String error) => Center(child: Text(error));
+  Widget _buildEmptyState() => const Center(child: Text("Không tìm thấy kết quả"));
+}
+
+// ─── Dialog đăng tin ───────────────────────────────────────────────────────
+
+class _AddPropertyDialog extends StatefulWidget {
+  final PropertyService propertyService;
+  final VoidCallback onSuccess;
+
+  const _AddPropertyDialog({required this.propertyService, required this.onSuccess});
+
+  @override
+  State<_AddPropertyDialog> createState() => _AddPropertyDialogState();
+}
+
+class _AddPropertyDialogState extends State<_AddPropertyDialog> {
+  // Controllers
+  final _titleCtrl = TextEditingController();
+  final _descCtrl = TextEditingController();
+  final _addressCtrl = TextEditingController();
+  final _wardCtrl = TextEditingController();
+  final _streetCtrl = TextEditingController();
+  final _priceCtrl = TextEditingController();
+  final _areaCtrl = TextEditingController();
+  final _bedsCtrl = TextEditingController();
+  final _bathsCtrl = TextEditingController();
+  final _legalCtrl = TextEditingController();
+  final _priceUnitCtrl = TextEditingController();
+
+  // Focus nodes
+  final _titleFocus = FocusNode();
+  final _addressFocus = FocusNode();
+  final _priceFocus = FocusNode();
+  final _areaFocus = FocusNode();
+
+  // Form state
+  String _selectedType = 'sell';
+  String _selectedCategory = 'apartment';
+  String? _selectedDirection;
+  int? _selectedDistrictId;
+  bool _isLoading = false;
+  bool _isLoadingDistricts = true;
+  String? _errorMessage;
+  List<Map<String, dynamic>> _districts = [];
+
+  static const Map<String, String> _typeLabels = {
+    'sell': 'Bán',
+    'rent': 'Cho thuê',
+  };
+
+  static const Map<String, String> _categoryLabels = {
+    'apartment': 'Căn hộ chung cư',
+    'house': 'Nhà ở',
+    'land': 'Đất nền',
+    'villa': 'Biệt thự',
+    'townhouse': 'Nhà phố',
+    'shophouse': 'Shophouse',
+    'office': 'Văn phòng',
+  };
+
+  static const List<String> _directions = [
+    'Đông', 'Tây', 'Nam', 'Bắc', 'Đông Bắc', 'Đông Nam', 'Tây Bắc', 'Tây Nam',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDistricts();
+  }
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _descCtrl.dispose();
+    _addressCtrl.dispose();
+    _wardCtrl.dispose();
+    _streetCtrl.dispose();
+    _priceCtrl.dispose();
+    _areaCtrl.dispose();
+    _bedsCtrl.dispose();
+    _bathsCtrl.dispose();
+    _legalCtrl.dispose();
+    _priceUnitCtrl.dispose();
+    _titleFocus.dispose();
+    _addressFocus.dispose();
+    _priceFocus.dispose();
+    _areaFocus.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadDistricts() async {
+    try {
+      final data = await widget.propertyService.getDistricts();
+      if (mounted) setState(() { _districts = data; _isLoadingDistricts = false; });
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingDistricts = false);
+    }
+  }
+
+  void _setError(String msg, {FocusNode? focus}) {
+    setState(() => _errorMessage = msg);
+    focus?.requestFocus();
+  }
+
+  Future<void> _submit() async {
+    setState(() { _errorMessage = null; _isLoading = true; });
+
+    if (_titleCtrl.text.trim().length < 10) {
+      _setError('Tiêu đề phải từ 10 ký tự trở lên', focus: _titleFocus);
+      setState(() => _isLoading = false);
+      return;
+    }
+    if (_addressCtrl.text.trim().isEmpty) {
+      _setError('Vui lòng nhập địa chỉ', focus: _addressFocus);
+      setState(() => _isLoading = false);
+      return;
+    }
+    if (_selectedDistrictId == null) {
+      _setError('Vui lòng chọn quận/huyện');
+      setState(() => _isLoading = false);
+      return;
+    }
+    final price = double.tryParse(_priceCtrl.text) ?? 0;
+    if (price <= 0) {
+      _setError('Vui lòng nhập giá hợp lệ (lớn hơn 0)', focus: _priceFocus);
+      setState(() => _isLoading = false);
+      return;
+    }
+    final area = double.tryParse(_areaCtrl.text) ?? 0;
+    if (area <= 0) {
+      _setError('Vui lòng nhập diện tích hợp lệ (lớn hơn 0)', focus: _areaFocus);
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    try {
+      final result = await widget.propertyService.createProperty({
+        'title': _titleCtrl.text.trim(),
+        'description': _descCtrl.text.trim(),
+        'type': _selectedType,
+        'category': _selectedCategory,
+        'address': _addressCtrl.text.trim(),
+        'ward': _wardCtrl.text.trim(),
+        'street': _streetCtrl.text.trim(),
+        'price': price,
+        'area': area,
+        'district_id': _selectedDistrictId,
+        'bedrooms': int.tryParse(_bedsCtrl.text),
+        'bathrooms': int.tryParse(_bathsCtrl.text),
+        'direction': _selectedDirection,
+        'legal_status': _legalCtrl.text.trim(),
+        'price_unit': _priceUnitCtrl.text.trim().isEmpty ? null : _priceUnitCtrl.text.trim(),
+        'amenities': [],
+      });
+
+      if (!mounted) return;
+      if (result['success']) {
+        Navigator.pop(context);
+        widget.onSuccess();
+      } else {
+        setState(() { _errorMessage = result['message']; _isLoading = false; });
+      }
+    } catch (e) {
+      if (mounted) setState(() { _errorMessage = e.toString(); _isLoading = false; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 28),
+      clipBehavior: Clip.hardEdge,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.88),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 16, 8, 14),
+              color: colorScheme.primary,
+              child: Row(
+                children: [
+                  const Icon(Icons.add_business, color: Colors.white),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Đăng tin bất động sản',
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
+              ),
+            ),
+
+            // Error banner (luôn hiển thị phía trên form, ngoài scroll)
+            if (_errorMessage != null)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                color: Colors.red[50],
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.error_outline, color: Colors.red, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _errorMessage!,
+                        style: const TextStyle(color: Colors.red, fontSize: 13),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => setState(() => _errorMessage = null),
+                      child: const Icon(Icons.close, color: Colors.red, size: 18),
+                    ),
+                  ],
+                ),
+              ),
+
+            // Form
+            Flexible(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                  18, 14, 18,
+                  MediaQuery.of(context).viewInsets.bottom + 20,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _sectionTitle('Thông tin cơ bản'),
+                    _field(_titleCtrl, 'Tiêu đề (tối thiểu 10 ký tự)', Icons.title, focusNode: _titleFocus),
+                    _field(_descCtrl, 'Mô tả chi tiết', Icons.description, maxLines: 3),
+
+                    Row(children: [
+                      Expanded(
+                        child: _dropdown(
+                          'Loại tin', _selectedType,
+                          _typeLabels.keys.toList(),
+                          labelBuilder: (v) => _typeLabels[v]!,
+                          onChanged: (v) => setState(() => _selectedType = v!),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _dropdown(
+                          'Loại BĐS', _selectedCategory,
+                          _categoryLabels.keys.toList(),
+                          labelBuilder: (v) => _categoryLabels[v]!,
+                          onChanged: (v) => setState(() => _selectedCategory = v!),
+                        ),
+                      ),
+                    ]),
+
+                    _sectionTitle('Vị trí'),
+                    _field(_addressCtrl, 'Địa chỉ', Icons.location_on, focusNode: _addressFocus),
+
+                    // Quận/Huyện từ API
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: _isLoadingDistricts
+                          ? const LinearProgressIndicator()
+                          : DropdownButtonFormField<int>(
+                              initialValue: _selectedDistrictId,
+                              decoration: InputDecoration(
+                                prefixIcon: const Icon(Icons.location_city, size: 20),
+                                filled: true,
+                                fillColor: Colors.grey[50],
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                              ),
+                              hint: const Text('Chọn quận/huyện'),
+                              items: _districts.map((d) => DropdownMenuItem<int>(
+                                value: d['id'] as int,
+                                child: Text(d['name'] as String),
+                              )).toList(),  
+                              isExpanded: true,
+                              onChanged: (v) => setState(() => _selectedDistrictId = v),
+                            ),
+                    ),
+
+                    Row(children: [
+                      Expanded(child: _field(_streetCtrl, 'Tên đường', Icons.add_road)),
+                      const SizedBox(width: 12),
+                      Expanded(child: _field(_wardCtrl, 'Phường/Xã', Icons.map)),
+                    ]),
+
+                    _sectionTitle('Giá & Diện tích'),
+                    Row(children: [
+                      Expanded(child: _field(_priceCtrl, 'Giá *', Icons.payments, isNumber: true, focusNode: _priceFocus)),
+                      const SizedBox(width: 12),
+                      Expanded(child: _field(_areaCtrl, 'Diện tích (m²) *', Icons.square_foot, isNumber: true, focusNode: _areaFocus)),
+                    ]),
+                    _field(
+                      _priceUnitCtrl,
+                      'Đơn giá (VD: Tỷ, Triệu/m², Triệu/tháng)',
+                      Icons.label_outline,
+                    ),
+
+                    _sectionTitle('Thông tin chi tiết'),
+                    Row(children: [
+                      Expanded(child: _field(_bedsCtrl, 'Phòng ngủ', Icons.bed, isNumber: true)),
+                      const SizedBox(width: 12),
+                      Expanded(child: _field(_bathsCtrl, 'Phòng tắm', Icons.bathtub, isNumber: true)),
+                    ]),
+                    _dropdown(
+                      'Hướng nhà', _selectedDirection, _directions,
+                      onChanged: (v) => setState(() => _selectedDirection = v),
+                      isOptional: true,
+                    ),
+                    _field(_legalCtrl, 'Pháp lý (VD: Sổ đỏ, Sổ hồng)', Icons.gavel),
+
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).colorScheme.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 15),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          elevation: 2,
+                        ),
+                        onPressed: _isLoading ? null : _submit,
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 30,
+                                width: 30,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                              )
+                            : const Text(
+                                'XÁC NHẬN ĐĂNG TIN',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionTitle(String title) => Padding(
+        padding: const EdgeInsets.only(bottom: 10, top: 6),
+        child: Text(
+          title,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blueGrey),
+        ),
+      );
+
+  Widget _field(
+    TextEditingController ctrl,
+    String hint,
+    IconData icon, {
+    bool isNumber = false,
+    int maxLines = 1,
+    FocusNode? focusNode,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: TextField(
+        controller: ctrl,
+        focusNode: focusNode,
+        maxLines: maxLines,
+        keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+        decoration: InputDecoration(
+          hintText: hint,
+          prefixIcon: Icon(icon, size: 20),
+          filled: true,
+          fillColor: Colors.grey[50],
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        ),
+      ),
+    );
+  }
+
+  Widget _dropdown(
+    String label,
+    String? value,
+    List<String> items, {
+    required Function(String?) onChanged,
+    String Function(String)? labelBuilder,
+    bool isOptional = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: DropdownButtonFormField<String>(
+        value: value,
+        decoration: InputDecoration(
+          labelText: label,
+          filled: true,
+          fillColor: Colors.grey[50],
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        ),
+        items: [
+          if (isOptional)
+            const DropdownMenuItem<String>(value: null, child: Text('Không xác định')),
+          ...items.map(
+            (e) => DropdownMenuItem<String>(
+              value: e,
+              child: Text(labelBuilder != null ? labelBuilder(e) : e),
+            ),
+          ),
+        ],
+        isExpanded: true,
+        onChanged: onChanged,
+      ),
+    );
+  }
+}
+
+// ─── Property Card ──────────────────────────────────────────────────────────
+
+class PropertyCard extends StatelessWidget {
+  final Property property;
+  const PropertyCard({super.key, required this.property});
+
+  String _getImageUrl(String url) {
+    if (url.startsWith('http')) return url;
+    return '${AppConfig.baseAppUrl}/$url';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final rawPrice = property.price % 1 == 0
+        ? property.price.toInt().toString()
+        : property.price.toString();
+    final priceDisplay = property.priceUnit != null
+        ? '$rawPrice ${property.priceUnit}'
+        : rawPrice;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      clipBehavior: Clip.antiAlias,
+      elevation: 3,
+      shadowColor: Colors.black.withValues(alpha: 0.1),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AspectRatio(
+            aspectRatio: 16 / 9,
+            child: property.thumbnailUrl != null
+                ? Image.network(
+                    _getImageUrl(property.thumbnailUrl!),
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => Container(
+                        color: Colors.grey[300],
+                        child: const Icon(Icons.broken_image, size: 50, color: Colors.grey)),
+                  )
+                : Container(
+                    color: Colors.grey[300],
+                    child: const Icon(Icons.home_work, size: 50, color: Colors.grey)),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  property.title,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '$priceDisplay  •  ${property.area} m²',
+                  style: TextStyle(
+                    fontSize: 17,
+                    color: colorScheme.primary,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    _buildIconLabel(Icons.bed_outlined, '${property.bedrooms ?? 0}'),
+                    const SizedBox(width: 20),
+                    _buildIconLabel(Icons.bathtub_outlined, '${property.bathrooms ?? 0}'),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Icon(Icons.location_on_outlined, size: 16, color: colorScheme.primary),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        property.address,
+                        style: const TextStyle(color: Colors.black54),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIconLabel(IconData icon, String label) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: Colors.grey[600]),
+        const SizedBox(width: 4),
+        Text(label, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w500)),
+      ],
+    );
+  }
+}

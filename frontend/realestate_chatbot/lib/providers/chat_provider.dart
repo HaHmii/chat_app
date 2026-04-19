@@ -22,8 +22,10 @@ class ChatProvider extends ChangeNotifier {
 
     try {
       // Lấy roomId từ tên channel
-      _roomId = await _service.getRoomId(AppConfig.roomName);
-      if (_roomId == null) throw Exception('Không tìm thấy channel');
+      _roomId = AppConfig.roomId;
+      if (_roomId == null) {
+        throw Exception('Không tìm thấy phòng chat. Vui lòng đăng nhập lại.');
+      }
 
       // Load tin nhắn cũ
       messages = await _service.getMessages(_roomId!);
@@ -51,7 +53,9 @@ class ChatProvider extends ChangeNotifier {
     }
   }
 
+  // Chuyển đổi List<MessageModel> thành List<ChatItem> để hiển thị
   List<ChatItem> get chatItems {
+    // Sắp xếp tin nhắn theo thời gian tăng dần
     final sorted = [...messages]
       ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
 
@@ -60,10 +64,13 @@ class ChatProvider extends ChangeNotifier {
 
     for (final msg in sorted) {
       final msgDate = DateUtils.dateOnly(msg.createdAt);
+      
+      // Thêm DateSeparatorItem nếu ngày thay đổi
       if (lastDate == null || !msgDate.isAtSameMomentAs(lastDate)) {
         items.add(DateSeparatorItem(msgDate));
         lastDate = msgDate;
       }
+      
       items.add(MessageItem(msg));
     }
 

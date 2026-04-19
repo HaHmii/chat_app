@@ -2,15 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'providers/chat_provider.dart';
-import 'screens/chat_screen.dart';
+import 'screens/login_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: '.env');
+
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    print("Không tìm thấy file .env: $e");
+  }
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => ChatProvider(),
-      child : const MyApp(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ChatProvider()),
+      ],
+      child: const MyApp(),
     ),
   );
 }
@@ -21,15 +28,21 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title        : 'BĐS Hà Nội',
       debugShowCheckedModeBanner: false,
-      theme        : ThemeData(
+      title: 'Real Estate App',
+      theme: ThemeData(
+        useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF1565C0),
+          primary: const Color(0xFF1565C0),
         ),
-        useMaterial3: true,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF1565C0),
+          foregroundColor: Colors.white,
+          elevation: 0,
+        ),
       ),
-      home: const ChatScreen(),
+      home: const LoginScreen(),
     );
   }
 }
