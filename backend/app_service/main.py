@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api import auth, properties, webhooks, districts
+from api import appointments, auth, properties, webhooks, districts
 
 app = FastAPI(
     title="Hanoi Real Estate API",
@@ -20,6 +20,7 @@ app.add_middleware(
 # Gắn (Include) các router vào ứng dụng chính
 app.include_router(auth.router)
 app.include_router(properties.router)
+app.include_router(appointments.router)
 app.include_router(webhooks.router)
 app.include_router(districts.router)
 

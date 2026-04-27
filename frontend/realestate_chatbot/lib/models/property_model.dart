@@ -16,6 +16,12 @@ class Property {
   final String? legalStatus;
   final List<String>? amenities;
   final String? thumbnailUrl;
+  // Detail-only fields
+  final List<String>? images;
+  final String? ownerName;
+  final String? ownerPhone;
+  final DateTime? createdAt;
+  final DateTime? expiresAt;
 
   Property({
     required this.id,
@@ -35,6 +41,11 @@ class Property {
     this.legalStatus,
     this.amenities,
     this.thumbnailUrl,
+    this.images,
+    this.ownerName,
+    this.ownerPhone,
+    this.createdAt,
+    this.expiresAt,
   });
 
   factory Property.fromJson(Map<String, dynamic> json) {
@@ -56,6 +67,11 @@ class Property {
       legalStatus: json['legal_status'] as String?,
       amenities: json['amenities'] != null ? List<String>.from(json['amenities']) : null,
       thumbnailUrl: json['thumbnail_url'] as String?,
+      images: json['images'] != null ? List<String>.from(json['images']) : null,
+      ownerName: json['owner_name'] as String?,
+      ownerPhone: json['owner_phone'] as String?,
+      createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at'] as String) : null,
+      expiresAt: json['expires_at'] != null ? DateTime.tryParse(json['expires_at'] as String) : null,
     );
   }
 }

@@ -12,21 +12,18 @@ class AuthService {
     final response = await http.post(
       url,
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: {
-        'username': username,
-        'password': password,
-      },
+      body: {'username': username, 'password': password},
     );
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      
+
       await _storage.write(key: 'jwt_token', value: data['access_token']);
-      
+
       AppConfig.setRCAuth(
-        uid   : data['rc_user_id'],
-        token : data['rc_auth_token'],
-        rid   : data['rc_room_id'],
+        uid: data['rc_user_id'],
+        token: data['rc_auth_token'],
+        rid: data['rc_room_id'],
       );
 
       // Lưu thông tin người dùng bổ sung
@@ -40,7 +37,10 @@ class AuthService {
       return {'success': true, 'message': 'Đăng nhập thành công'};
     } else {
       final errorData = jsonDecode(response.body);
-      return {'success': false, 'message': errorData['detail'] ?? 'Đăng nhập thất bại'};
+      return {
+        'success': false,
+        'message': errorData['detail'] ?? 'Đăng nhập thất bại',
+      };
     }
   }
 
@@ -48,6 +48,7 @@ class AuthService {
     required String fullName,
     required String username,
     required String email,
+    required String phoneNumber,
     required String password,
   }) async {
     final url = Uri.parse('${AppConfig.baseAppUrl}/auth/register');
@@ -59,6 +60,7 @@ class AuthService {
         'full_name': fullName,
         'username': username,
         'email': email,
+        'phone_number': phoneNumber,
         'password': password,
       }),
     );
@@ -68,15 +70,18 @@ class AuthService {
 
       // Sau khi đăng ký, backend cũng trả về thông tin RC (nếu có)
       AppConfig.setRCAuth(
-        uid   : data['rc_user_id'],
-        token : data['rc_auth_token'],
-        rid   : data['rc_room_id'],
+        uid: data['rc_user_id'],
+        token: data['rc_auth_token'],
+        rid: data['rc_room_id'],
       );
 
       return {'success': true, 'message': 'Đăng ký thành công'};
     } else {
       final errorData = jsonDecode(response.body);
-      return {'success': false, 'message': errorData['detail'] ?? 'Đăng ký thất bại'};
+      return {
+        'success': false,
+        'message': errorData['detail'] ?? 'Đăng ký thất bại',
+      };
     }
   }
 

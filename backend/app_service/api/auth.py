@@ -11,6 +11,9 @@ logger = logging.getLogger(__name__)
 
 @router.post("/register", response_model=auth_service.UserResponse)
 def register(user_in: auth_service.UserCreate, db: Session = Depends(get_db)):
+    if not user_in.phone_number or not user_in.phone_number.strip():
+        raise HTTPException(status_code=400, detail="Số điện thoại là bắt buộc.")
+
     # 1. Kiểm tra trùng lặp trong DB Local
     user_exists = db.query(User).filter(
         (User.username == user_in.username) | (User.email == user_in.email)

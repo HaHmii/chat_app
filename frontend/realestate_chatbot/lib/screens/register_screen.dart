@@ -14,6 +14,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _fullNameController = TextEditingController();
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
 
@@ -21,8 +22,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _isLoading = false;
 
   void _handleRegister() async {
+    if (_phoneController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng nhập số điện thoại!')),
+      );
+      return;
+    }
+
+    if (_phoneController.text.trim().length < 9) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Số điện thoại không hợp lệ!')),
+      );
+      return;
+    }
+
     if (_passwordController.text != _confirmController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Mật khẩu xác nhận không khớp!')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Mật khẩu xác nhận không khớp!')),
+      );
       return;
     }
 
@@ -32,6 +49,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       fullName: _fullNameController.text.trim(),
       username: _usernameController.text.trim(),
       email: _emailController.text.trim(),
+      phoneNumber: _phoneController.text.trim(),
       password: _passwordController.text,
     );
 
@@ -40,7 +58,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!mounted) return;
 
     if (result['success']) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đăng ký thành công! Vui lòng đăng nhập.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đăng ký thành công! Vui lòng đăng nhập.'),
+        ),
+      );
       Navigator.pop(context); // Quay lại trang đăng nhập
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -54,6 +76,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _fullNameController.dispose();
     _usernameController.dispose();
     _emailController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
     super.dispose();
@@ -63,22 +86,59 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0, iconTheme: const IconThemeData(color: Colors.blue)),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.blue),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 30),
           child: Column(
             children: [
-              const Text('Tạo Tài Khoản Mới', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+              const Text(
+                'Tạo Tài Khoản Mới',
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 10),
-              const Text('Điền thông tin để bắt đầu trải nghiệm', style: TextStyle(color: Colors.grey)),
+              const Text(
+                'Điền thông tin để bắt đầu trải nghiệm',
+                style: TextStyle(color: Colors.grey),
+              ),
               const SizedBox(height: 30),
 
-              CustomTextField(hintText: 'Họ và tên', icon: Icons.badge, controller: _fullNameController),
-              CustomTextField(hintText: 'Tên đăng nhập', icon: Icons.person, controller: _usernameController),
-              CustomTextField(hintText: 'Email', icon: Icons.email, controller: _emailController),
-              CustomTextField(hintText: 'Mật khẩu', icon: Icons.lock, isPassword: true, controller: _passwordController),
-              CustomTextField(hintText: 'Xác nhận mật khẩu', icon: Icons.lock_outline, isPassword: true, controller: _confirmController),
+              CustomTextField(
+                hintText: 'Họ và tên',
+                icon: Icons.badge,
+                controller: _fullNameController,
+              ),
+              CustomTextField(
+                hintText: 'Tên đăng nhập',
+                icon: Icons.person,
+                controller: _usernameController,
+              ),
+              CustomTextField(
+                hintText: 'Email',
+                icon: Icons.email,
+                controller: _emailController,
+              ),
+              CustomTextField(
+                hintText: 'Số điện thoại',
+                icon: Icons.phone,
+                controller: _phoneController,
+              ),
+              CustomTextField(
+                hintText: 'Mật khẩu',
+                icon: Icons.lock,
+                isPassword: true,
+                controller: _passwordController,
+              ),
+              CustomTextField(
+                hintText: 'Xác nhận mật khẩu',
+                icon: Icons.lock_outline,
+                isPassword: true,
+                controller: _confirmController,
+              ),
 
               const SizedBox(height: 20),
 

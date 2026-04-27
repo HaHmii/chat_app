@@ -8,18 +8,33 @@ class PropertyService {
   final _storage = const FlutterSecureStorage();
 
   // Lấy danh sách (Public)
-  Future<List<Property>> getProperties({String? type}) async {
-    var urlString = '${AppConfig.baseAppUrl}/properties/';
-    if (type != null) urlString += '?type=$type';
-    
-    final response = await http.get(Uri.parse(urlString));
+  Future<List<Property>> getProperties({
+    String? type,
+    int? districtId,
+    String? category,
+    double? minPrice,
+    double? maxPrice,
+    double? minArea,
+    double? maxArea,
+  }) async {
+    final params = <String, String>{};
+    if (type != null) params['type'] = type;
+    if (districtId != null) params['district_id'] = districtId.toString();
+    if (category != null) params['category'] = category;
+    if (minPrice != null) params['min_price'] = minPrice.toStringAsFixed(0);
+    if (maxPrice != null) params['max_price'] = maxPrice.toStringAsFixed(0);
+    if (minArea != null) params['min_area'] = minArea.toStringAsFixed(2);
+    if (maxArea != null) params['max_area'] = maxArea.toStringAsFixed(2);
 
+    final uri = Uri.parse('${AppConfig.baseAppUrl}/properties/')
+        .replace(queryParameters: params.isEmpty ? null : params);
+
+    final response = await http.get(uri);
     if (response.statusCode == 200) {
-      List data = jsonDecode(response.body);
+      final List data = jsonDecode(response.body);
       return data.map((item) => Property.fromJson(item)).toList();
-    } else {
-      throw Exception('Lỗi khi tải danh sách bất động sản');
     }
+    throw Exception('Lỗi khi tải danh sách bất động sản');
   }
 
   Future<List<Property>> getPendingProperties() async {
@@ -65,6 +80,14 @@ class PropertyService {
       return data.cast<Map<String, dynamic>>();
     }
     throw Exception('Lỗi khi tải danh sách quận/huyện');
+  }
+
+  Future<Property> getPropertyDetail(int id) async {
+    final response = await http.get(Uri.parse('${AppConfig.baseAppUrl}/properties/$id'));
+    if (response.statusCode == 200) {
+      return Property.fromJson(jsonDecode(response.body));
+    }
+    throw Exception('Lỗi khi tải chi tiết bất động sản');
   }
 
   // Đăng tin (Chủ nhà)

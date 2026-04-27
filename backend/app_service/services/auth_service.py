@@ -1,16 +1,14 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import datetime, timedelta
 from jose import jwt
 from passlib.context import CryptContext
 from models.user import UserRole, User
-from dotenv import load_dotenv
-import os
 import logging
 from services.rocketchat_service import rc_service
 from sqlalchemy.orm import Session
+from config import settings
 
-load_dotenv()
 logger = logging.getLogger(__name__)
 
 # --- 1. PYDANTIC SCHEMAS ---
@@ -19,7 +17,7 @@ class UserCreate(BaseModel):
     username: str
     email: EmailStr
     password: str
-    phone_number: Optional[str] = None
+    phone_number: str = Field(..., min_length=9, max_length=15)
 
 class UserResponse(BaseModel):
     id: int
@@ -46,9 +44,9 @@ class Token(BaseModel):
     rc_room_id: Optional[str] = None
 
 # --- 2. BẢO MẬT & JWT LOGIC ---
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key")
-ALGORITHM = os.getenv("ALGORITHM", "HS256")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10080"))
+SECRET_KEY = settings.secret_key
+ALGORITHM = settings.algorithm
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_expire_minutes
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
@@ -66,7 +64,6 @@ def create_access_token(data: dict):
     return encoded_jwt
 
 # --- 3. ROCKETCHAT INTEGRATION LOGIC ---
-
 def sync_rocketchat_user(db: Session, user: User, password: str):
     """
     Đảm bảo user có tài khoản RocketChat, đã login lấy token và có room chat với bot.

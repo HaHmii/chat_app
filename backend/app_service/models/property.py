@@ -44,6 +44,7 @@ class Property(Base):
     address = Column(String(500), nullable=False)
     ward = Column(String(150), nullable=True)
     street = Column(String(150), nullable=True)
+    gps = Column(String(100), nullable=True)
     
     # Giữ nguyên Numeric cho price và area
     price = Column(Numeric(18, 0), nullable=False)
