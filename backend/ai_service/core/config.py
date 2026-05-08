@@ -7,6 +7,9 @@ class Settings(BaseSettings):
     openai_api_key: str
     openai_model: str = "gpt-4o-mini"
 
+    google_api_key: str
+    google_api_model: str = "gemini-2.5-flash"
+
     llamacloud_api_key: str
     llamacloud_index_id: str
 
@@ -18,6 +21,7 @@ class Settings(BaseSettings):
     rocketchat_webhook_url: str
 
     web_service_url: str
+    internal_api_key: str = "ai-internal-key-change-me"
 
     ai_mode: str = "router"
     session_timeout_hours: int = 24

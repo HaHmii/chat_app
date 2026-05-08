@@ -63,13 +63,6 @@ def build_property_filter(
         query = query.filter(Property.area <= max_area)
     return query
 
-
-@router.get("/districts", response_model=List[dict])
-def get_districts(db: Session = Depends(get_db)):
-    """Lấy danh sách quận huyện để hiển thị trong select input"""
-    districts = db.query(District).all()
-    return [{"id": d.id, "name": d.name} for d in districts]
-
 @router.get("/", response_model=List[dict])
 def get_properties(
     type: Optional[PropertyType] = None,

@@ -1,9 +1,9 @@
-import os
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
+from config import settings
 from database import get_db
 from models.appointment import AppointmentStatus
 from models.property import Property
@@ -19,8 +19,8 @@ from services.appointment_service import (
 router = APIRouter(prefix="/appointments", tags=["Appointments"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key")
-ALGORITHM = os.getenv("ALGORITHM", "HS256")
+SECRET_KEY = settings.secret_key
+ALGORITHM = settings.algorithm
 
 def get_current_user(
     db: Session = Depends(get_db),

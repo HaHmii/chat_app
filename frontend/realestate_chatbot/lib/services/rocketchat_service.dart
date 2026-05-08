@@ -13,8 +13,16 @@ class RocketChatService {
   ));
 
   WebSocketChannel? _channel;
+  StreamController<MessageModel>? _messageController;
+  final StreamController<bool> _connectionController =
+      StreamController<bool>.broadcast();
+  String? _activeRoomId;
+  Timer? _pingTimer;
+  Timer? _reconnectTimer;
+  bool _disposed = false;
 
-  // Header xác thực lấy động từ AppConfig sau khi login
+  Stream<bool> get connectionStatus => _connectionController.stream;
+
   Options get _authOptions {
     return Options(headers: {
       'X-Auth-Token': AppConfig.authToken ?? '',
@@ -23,7 +31,6 @@ class RocketChatService {
     });
   }
 
-  // Lấy tin nhắn từ Direct Message (IM)
   Future<List<MessageModel>> getMessages(String roomId, {int count = 50}) async {
     try {
       final res = await _dio.get(
@@ -42,7 +49,6 @@ class RocketChatService {
     }
   }
 
-  // Gửi tin nhắn
   Future<void> sendMessage(String roomId, String text) async {
     try {
       await _dio.post(
@@ -58,19 +64,24 @@ class RocketChatService {
     }
   }
 
-  // Kết nối WebSocket nhận tin nhắn realtime
-  StreamController<MessageModel>? _messageController;
-
   Stream<MessageModel> connectWebSocket(String roomId) {
+    _disposed = false;
+    _activeRoomId = roomId;
     _messageController = StreamController<MessageModel>.broadcast();
+    _connectInternal(roomId);
+    return _messageController!.stream;
+  }
+
+  void _connectInternal(String roomId) {
+    if (_disposed) return;
+
+    _pingTimer?.cancel();
+    _channel?.sink.close();
 
     try {
       _channel = WebSocketChannel.connect(Uri.parse(AppConfig.wsUrl));
 
-      // 1. Handshake
       _send({'msg': 'connect', 'version': '1', 'support': ['1']});
-
-      // 2. Xác thực bằng token đã có
       _send({
         'msg': 'method',
         'method': 'login',
@@ -79,13 +90,16 @@ class RocketChatService {
           {'resume': AppConfig.authToken}
         ],
       });
-
-      // 3. Subscribe stream tin nhắn của room
       _send({
         'msg': 'sub',
         'id': 'sub-$roomId',
         'name': 'stream-room-messages',
         'params': [roomId, false],
+      });
+
+      // Gửi ping mỗi 25 giây để giữ kết nối sống
+      _pingTimer = Timer.periodic(const Duration(seconds: 25), (_) {
+        _send({'msg': 'ping'});
       });
 
       _channel!.stream.listen(
@@ -97,7 +111,13 @@ class RocketChatService {
             return;
           }
 
-          if (data['msg'] == 'changed' && data['collection'] == 'stream-room-messages') {
+          // Login thành công → kết nối ổn định
+          if (data['msg'] == 'result' && data['id'] == 'login-rc') {
+            _connectionController.add(true);
+          }
+
+          if (data['msg'] == 'changed' &&
+              data['collection'] == 'stream-room-messages') {
             final args = data['fields']?['args'];
             if (args != null && args.isNotEmpty) {
               final msg = MessageModel.fromJson(args[0], AppConfig.botUsername);
@@ -105,14 +125,32 @@ class RocketChatService {
             }
           }
         },
-        onError: (e) => print('WebSocket error: $e'),
-        onDone: () => print('WebSocket closed'),
+        onError: (e) {
+          print('WebSocket error: $e');
+          _scheduleReconnect();
+        },
+        onDone: () {
+          print('WebSocket closed — đang kết nối lại...');
+          _scheduleReconnect();
+        },
       );
     } catch (e) {
       print('WebSocket connection error: $e');
+      _scheduleReconnect();
     }
+  }
 
-    return _messageController!.stream;
+  void _scheduleReconnect() {
+    if (_disposed || _activeRoomId == null) return;
+    _pingTimer?.cancel();
+    _reconnectTimer?.cancel();
+    _connectionController.add(false);
+    _reconnectTimer = Timer(const Duration(seconds: 3), () {
+      if (!_disposed && _activeRoomId != null) {
+        print('Reconnecting WebSocket...');
+        _connectInternal(_activeRoomId!);
+      }
+    });
   }
 
   void _send(Map<String, dynamic> data) {
@@ -120,7 +158,12 @@ class RocketChatService {
   }
 
   void disconnect() {
+    _disposed = true;
+    _pingTimer?.cancel();
+    _reconnectTimer?.cancel();
     _channel?.sink.close();
     _messageController?.close();
+    _connectionController.close();
+    _activeRoomId = null;
   }
 }

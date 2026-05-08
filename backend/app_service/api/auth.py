@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 from fastapi.security import OAuth2PasswordRequestForm
+from config import settings
 from database import get_db
 from models.user import User
 from services import auth_service
@@ -70,7 +71,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     )
 
     return {
-        "access_token": access_token, 
+        "access_token": access_token,
         "token_type": "bearer",
         "role": user.role.value,
         "full_name": user.full_name,
@@ -79,3 +80,23 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         "rc_auth_token": user.rc_auth_token,
         "rc_room_id": user.rc_room_id
     }
+
+
+@router.post("/internal/token")
+def get_token_by_rc_username(
+    rc_username: str,
+    x_internal_key: str = Header(...),
+    db: Session = Depends(get_db),
+):
+    """Internal endpoint — AI service dùng để lấy JWT cho user theo RC username."""
+    if x_internal_key != settings.internal_api_key:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid internal key")
+
+    user = db.query(User).filter(User.username == rc_username).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    token = auth_service.create_access_token(
+        data={"sub": str(user.id), "role": user.role.value}
+    )
+    return {"access_token": token, "user_id": user.id}

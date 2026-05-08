@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     secret_key: str
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 10080
+    internal_api_key: str = "ai-internal-key-change-me"
     rc_base_url: str = "http://localhost:3000"
     rc_user_id: str
     rc_auth_token: str

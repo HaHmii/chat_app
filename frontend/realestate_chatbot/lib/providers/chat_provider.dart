@@ -10,10 +10,12 @@ class ChatProvider extends ChangeNotifier {
   List<MessageModel> messages   = [];
   bool isLoading                = false;
   bool isConnected              = false;
+  bool isBotTyping              = false;
   String? errorMessage;
   String? _roomId;
 
   StreamSubscription? _subscription;
+  StreamSubscription? _connectionSubscription;
 
   Future<void> init() async {
     isLoading    = true;
@@ -30,11 +32,16 @@ class ChatProvider extends ChangeNotifier {
       // Load tin nhắn cũ
       messages = await _service.getMessages(_roomId!);
 
+      // Lắng nghe trạng thái kết nối WebSocket (kể cả khi reconnect)
+      _connectionSubscription?.cancel();
+      _connectionSubscription = _service.connectionStatus.listen((connected) {
+        isConnected = connected;
+        notifyListeners();
+      });
+
       // Kết nối WebSocket nhận tin nhắn mới
       final stream = _service.connectWebSocket(_roomId!);
       _subscription = stream.listen(_onNewMessage);
-
-      isConnected = true;
     } catch (e) {
       errorMessage = 'Lỗi kết nối: $e';
     } finally {
@@ -45,10 +52,13 @@ class ChatProvider extends ChangeNotifier {
 
   Future<void> sendMessage(String text) async {
     if (text.trim().isEmpty || _roomId == null) return;
+    isBotTyping = true;
+    notifyListeners();
     try {
       await _service.sendMessage(_roomId!, text.trim());
     } catch (e) {
       errorMessage = 'Gửi tin thất bại: $e';
+      isBotTyping = false;
       notifyListeners();
     }
   }
@@ -78,15 +88,19 @@ class ChatProvider extends ChangeNotifier {
   }
 
   void _onNewMessage(MessageModel msg) {
+    if (msg.isBot && isBotTyping) {
+      isBotTyping = false;
+    }
     if (!messages.any((m) => m.id == msg.id)) {
       messages.insert(0, msg);
-      notifyListeners();
     }
+    notifyListeners();
   }
 
   @override
   void dispose() {
     _subscription?.cancel();
+    _connectionSubscription?.cancel();
     _service.disconnect();
     super.dispose();
   }

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api import appointments, auth, properties, webhooks, districts
+from api import appointments, auth, properties, search, webhooks, districts
 
 app = FastAPI(
     title="Hanoi Real Estate API",
@@ -23,6 +23,7 @@ app.include_router(properties.router)
 app.include_router(appointments.router)
 app.include_router(webhooks.router)
 app.include_router(districts.router)
+app.include_router(search.router)
 
 @app.get("/")
 def read_root():

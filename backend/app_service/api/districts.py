@@ -1,8 +1,6 @@
-# routers/districts.py
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Optional
-
 from database import get_db
 from models.district import District
 from services.district_service import DistrictResponse
