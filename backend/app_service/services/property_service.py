@@ -6,8 +6,40 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime, timedelta
 import logging
+import httpx
 
 logger = logging.getLogger(__name__)
+
+_NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+_NOMINATIM_HEADERS = {"User-Agent": "BDSHanoiChatbot/1.0 (contact: admin@bds-hanoi.vn)"}
+
+
+def _geocode_address(address: str) -> str | None:
+    """Trả về chuỗi 'lat, lng' từ địa chỉ, hoặc None nếu không tìm được."""
+    try:
+        resp = httpx.get(
+            _NOMINATIM_URL,
+            params={
+                "q": f"{address}, Hà Nội, Việt Nam",
+                "format": "json",
+                "limit": 1,
+                "countrycodes": "VN",
+                "accept-language": "vi",
+            },
+            headers=_NOMINATIM_HEADERS,
+            timeout=8.0,
+        )
+        results = resp.json()
+        if results:
+            lat = float(results[0]["lat"])
+            lng = float(results[0]["lon"])
+            logger.info(f"[Geocode] {address!r} → {lat:.6f}, {lng:.6f}")
+            return f"{lat:.6f}, {lng:.6f}"
+        logger.warning(f"[Geocode] no result for {address!r}")
+    except Exception as e:
+        logger.warning(f"[Geocode] error for {address!r}: {e}")
+    return None
+
 
 class PropertyReview(BaseModel):
     action: str  # 'approved' | 'rejected'
@@ -31,8 +63,6 @@ class PropertyCreate(BaseModel):
     bedrooms: Optional[int] = Field(None, ge=0)
     bathrooms: Optional[int] = Field(None, ge=0)
     direction: Optional[str] = None
-    legal_status: Optional[str] = None
-    amenities: Optional[List[str]] = []
 
 class PropertyService:
     def create_property(self, db: Session, prop_in: PropertyCreate, current_user: User):
@@ -40,18 +70,13 @@ class PropertyService:
         Logic tạo tin đăng bất động sản
         """
         try:
-            # 1. Kiểm tra Role - Chỉ Owner, Staff hoặc Admin mới được đăng tin
-            # (Bạn yêu cầu đính kèm authorization xác định role chủ nhà)
             if current_user.role not in [UserRole.owner, UserRole.staff, UserRole.admin]:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Bạn không có quyền đăng tin. Vui lòng nâng cấp tài khoản lên Chủ nhà."
                 )
 
-            # 2. Kiểm tra tính hợp lệ bổ sung (ví dụ: hạn chế số tin đăng trong ngày)
-            # ... có thể thêm logic ở đây ...
-
-            expires_at = datetime.utcnow() + timedelta(days=30)
+            gps = _geocode_address(prop_in.address)
 
             new_property = Property(
                 owner_id=current_user.id,
@@ -70,9 +95,7 @@ class PropertyService:
                 bedrooms=prop_in.bedrooms,
                 bathrooms=prop_in.bathrooms,
                 direction=prop_in.direction,
-                legal_status=prop_in.legal_status,
-                amenities=prop_in.amenities,
-                expires_at=expires_at
+                gps=gps
             )
 
             db.add(new_property)

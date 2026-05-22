@@ -10,17 +10,25 @@ class AppConfig {
   static String? userId;
   static String? authToken;
   static String? roomId;
-  
+  // Livechat visitor token (= username) — dùng để auth DDP và gửi tin Livechat
+  static String? visitorToken;
+
   // User Info
   static String? fullName;
   static String? username;
   static String? email;
   static String? role; // 'admin', 'staff', 'owner', 'guest'
 
-  static void setRCAuth({required String? uid, required String? token, required String? rid}) {
+  static void setRCAuth({
+    required String? uid,
+    required String? token,
+    required String? rid,
+    String? vtoken,
+  }) {
     userId = uid;
     authToken = token;
     roomId = rid;
+    visitorToken = vtoken;
   }
 
   static void setUserInfo({required String? name, required String? uname, required String? mail, required String? urole}) {

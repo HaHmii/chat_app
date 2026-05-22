@@ -26,7 +26,6 @@ class Appointment(Base):
     proposed_time = Column(DateTime, nullable=False)
     counter_proposed_time = Column(DateTime, nullable=True)
     confirmed_time = Column(DateTime, nullable=True)
-    note = Column(Text, nullable=True)
     status = Column(
         Enum(AppointmentStatus, name="appointment_status"),
         default=AppointmentStatus.pending,
@@ -37,7 +36,6 @@ class Appointment(Base):
         nullable=True,
     )
     cancel_reason = Column(Text, nullable=True)
-    rating = Column(Integer, nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 

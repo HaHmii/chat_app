@@ -18,12 +18,40 @@ class _AiConsultantScreenState extends State<AiConsultantScreen> {
   final TextEditingController _ctrl = TextEditingController();
   final ScrollController _scrollCtrl = ScrollController();
 
+  ChatProvider? _chatProvider;
+  int _lastMsgCount = 0;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ChatProvider>().init();
+      if (!mounted) return;
+      _chatProvider = context.read<ChatProvider>();
+      _chatProvider!.init();
+      _chatProvider!.addListener(_onProviderChange);
     });
+  }
+
+  void _onProviderChange() {
+    final count = _chatProvider?.messages.length ?? 0;
+    if (count > _lastMsgCount) {
+      _lastMsgCount = count;
+      if (_scrollCtrl.hasClients) {
+        _scrollCtrl.animateTo(
+          0,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _chatProvider?.removeListener(_onProviderChange);
+    _ctrl.dispose();
+    _scrollCtrl.dispose();
+    super.dispose();
   }
 
   void _sendQuickQuery(String text) {
@@ -109,6 +137,12 @@ class _AiConsultantScreenState extends State<AiConsultantScreen> {
                   if (_ctrl.text.trim().isNotEmpty) {
                     provider.sendMessage(_ctrl.text);
                     _ctrl.clear();
+                    // Scroll to bottom immediately when user sends
+                    if (_scrollCtrl.hasClients) {
+                      _scrollCtrl.animateTo(0,
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeOut);
+                    }
                   }
                 },
               ),

@@ -1,10 +1,9 @@
 import logging
-
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
-
 from core.config import settings
+from prompts.shared import LEGAL_RESPONSE_RULES, LEGAL_TERM_MAPPING
 from tools.legal_query import LegalQueryTool
 
 logger = logging.getLogger(__name__)
@@ -14,27 +13,14 @@ _REWRITE_PROMPT = ChatPromptTemplate.from_messages([
      "Bạn là chuyên gia pháp luật BĐS Việt Nam.\n"
      "Chuyển câu hỏi của người dùng thành một cụm từ tìm kiếm pháp lý NGẮN GỌN, CHÍNH XÁC.\n"
      "Chỉ trả về cụm từ tìm kiếm, KHÔNG giải thích, KHÔNG đánh số, KHÔNG thêm gì khác.\n"
-     "Dùng thuật ngữ trong Luật Đất đai 2024, Luật Nhà ở 2023, Luật KDBĐS 2023.\n\n"
-     "Tham khảo ánh xạ:\n"
-     "sổ hồng → Giấy chứng nhận quyền sở hữu nhà ở và quyền sử dụng đất ở\n"
-     "sổ đỏ → Giấy chứng nhận quyền sử dụng đất\n"
-     "hợp đồng mua bán nhà/đất → hợp đồng chuyển nhượng quyền sử dụng đất điều kiện giao dịch\n"
-     "sang tên → thủ tục chuyển nhượng đăng ký biến động quyền sử dụng đất\n"
-     "kinh doanh BĐS → điều kiện kinh doanh bất động sản tổ chức cá nhân"),
+     + LEGAL_TERM_MAPPING),
     ("human", "{query}"),
 ])
 
 _GENERATE_PROMPT = ChatPromptTemplate.from_messages([
     ("system",
      "Bạn là chuyên gia pháp lý BĐS Việt Nam. Trả lời TRỰC TIẾP và CỤ THỂ vào câu hỏi.\n\n"
-     "Yêu cầu bắt buộc:\n"
-     "1. Trích dẫn điều/khoản cụ thể (VD: 'Theo Điều 45, Khoản 2, Luật Đất đai 2024...') "
-     "rồi giải thích NỘI DUNG quy định đó.\n"
-     "2. KHÔNG chỉ nêu tên luật — phải giải thích luật đó quy định CỤ THỂ như thế nào.\n"
-     "3. Nếu câu hỏi dùng từ thông thường (sổ hồng, sổ đỏ, hợp đồng mua bán...), "
-     "hãy giải thích tên pháp lý tương đương rồi trả lời.\n"
-     "4. KHÔNG bịa thêm thông tin ngoài văn bản được cung cấp.\n"
-     "5. Nếu văn bản không đủ thông tin, chỉ nói thẳng là không tìm thấy thông tin liên quan.\n"
+     + LEGAL_RESPONSE_RULES + "\n"
      "Văn bản pháp luật:\n{legal_context}\n\n"
      "Lịch sử hội thoại: {history}"),
     ("human", "{user_message}"),

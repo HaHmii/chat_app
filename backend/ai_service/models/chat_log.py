@@ -1,5 +1,4 @@
 from sqlalchemy import JSON, Column, DateTime, Float, Integer, String, Text
-
 from core.utils import vn_now
 from models.base import Base
 

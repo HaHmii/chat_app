@@ -7,10 +7,14 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 10080
     internal_api_key: str = "ai-internal-key-change-me"
-    rc_base_url: str = "http://localhost:3000"
-    rc_user_id: str
-    rc_auth_token: str
-    rc_bot_username: str = "bot.ai"
+    rc_base_url: str
+    rc_user_id: str           # admin user ID — dùng để quản trị (tạo user, v.v.)
+    rc_auth_token: str        # admin auth token
+    rc_bot_username: str
+    rc_bot_user_id: str       # bot user ID
+    rc_bot_auth_token: str    # bot auth token — dùng để set livechat status
     rc_webhook_url: str
+    rc_livechat_department_id: str
+
 
 settings = Settings()

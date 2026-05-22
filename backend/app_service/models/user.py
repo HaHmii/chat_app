@@ -24,7 +24,8 @@ class User(Base):
     rc_user_id = Column(String(100), unique=True, nullable=True)
     rc_auth_token = Column(Text, nullable=True)
     rc_room_id = Column(String(100), unique=True, nullable=True)
+    # Livechat visitor token — dùng khi room type = livechat (omnichannel)
+    rc_visitor_token = Column(String(200), nullable=True)
     
-    last_seen_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)

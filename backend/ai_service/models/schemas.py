@@ -9,6 +9,22 @@ class RocketChatWebhookPayload(BaseModel):
     text: str = ""                  # RC có thể gửi rỗng cho system message
     message_id: str | None = None
 
+
+class LivechatWebhookPayload(BaseModel):
+    """Payload từ RC Admin → Omnichannel → Webhooks.
+
+    Chỉ fire cho Livechat room, chỉ khi visitor gửi tin (agent messages
+    không trigger nếu không bật tùy chọn 'Agent messages' trong RC).
+    """
+    type: str = ""          # "Message" | "LivechatSession" | ...
+    visitor: dict = {}      # { token, name, email, ... }
+    room: dict = {}         # { _id, servedBy, ... }
+    messages: list[dict] = []  # [{ msg, _id, ts, u, ... }]
+
+class ResolveRequest(BaseModel):
+    staff_id: str | None = None
+
+
 class EvalRequest(BaseModel):
     user_message: str
     pipeline: str = "router"

@@ -24,6 +24,7 @@ class AuthService {
         uid: data['rc_user_id'],
         token: data['rc_auth_token'],
         rid: data['rc_room_id'],
+        vtoken: data['rc_visitor_token'],
       );
 
       // Lưu thông tin người dùng bổ sung
@@ -73,6 +74,7 @@ class AuthService {
         uid: data['rc_user_id'],
         token: data['rc_auth_token'],
         rid: data['rc_room_id'],
+        vtoken: data['rc_visitor_token'],
       );
 
       return {'success': true, 'message': 'Đăng ký thành công'};
@@ -91,7 +93,7 @@ class AuthService {
 
   Future<void> logout() async {
     await _storage.delete(key: 'jwt_token');
-    AppConfig.setRCAuth(uid: null, token: null, rid: null);
+    AppConfig.setRCAuth(uid: null, token: null, rid: null, vtoken: null);
     AppConfig.setUserInfo(name: null, uname: null, mail: null, urole: null);
   }
 }

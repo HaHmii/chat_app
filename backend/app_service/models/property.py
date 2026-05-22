@@ -54,13 +54,7 @@ class Property(Base):
     bedrooms = Column(Integer, nullable=True)
     bathrooms = Column(Integer, nullable=True)
     direction = Column(String(20), nullable=True)
-    legal_status = Column(String(100), nullable=True)
-    amenities = Column(ARRAY(Text), nullable=True)
     rejection_reason = Column(Text, nullable=True)
-
-    expires_at = Column(DateTime, nullable=False)
-    view_count = Column(Integer, default=0, nullable=False)
-    search_vector = Column(TSVECTOR, nullable=True)
 
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
@@ -77,7 +71,6 @@ class PropertyImage(Base):
     id = Column(Integer, primary_key=True)
     property_id = Column(Integer, ForeignKey("properties.id", ondelete="CASCADE"), nullable=False)
     url = Column(Text, nullable=False)
-    caption = Column(String(255), nullable=True)
     sort_order = Column(Integer, default=0, nullable=False)
     uploaded_at = Column(DateTime, server_default=func.now(), nullable=False)
 

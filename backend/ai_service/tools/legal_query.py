@@ -1,13 +1,17 @@
 import logging
+import re
 from typing import ClassVar
-
 from langchain_core.tools import BaseTool
-
 from core.config import settings
 from llama_index.indices.managed.llama_cloud import LlamaCloudIndex
 
 logger = logging.getLogger(__name__)
 
+# Null bytes (\x00) và control chars gây lỗi PostgreSQL UTF-8; giữ lại tab/newline/carriage-return.
+_CONTROL_CHAR_RE = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
+
+def _clean_node_text(text: str) -> str:
+    return _CONTROL_CHAR_RE.sub('', text).strip()
 
 class LegalQueryTool(BaseTool):
     name: str = "legal_query"
@@ -27,16 +31,24 @@ class LegalQueryTool(BaseTool):
             retriever = index.as_retriever(similarity_top_k=5)
             nodes = retriever.retrieve(query)
 
-            if not nodes:
+            relevant = [n for n in nodes if (n.score or 0) >= self.RELEVANCE_THRESHOLD]
+            if not relevant:
+                logger.info(f"[LegalQuery] no nodes above threshold {self.RELEVANCE_THRESHOLD} for {query!r}")
                 return (
                     "Không tìm thấy thông tin trong văn bản pháp luật. "
                     "Bạn nên tham khảo luật sư hoặc cơ quan chức năng."
                 )
 
             parts = []
-            for node in nodes:
+            for node in relevant:
                 file_name = node.metadata.get("file_name", "văn bản pháp luật")
-                parts.append(f"--- Trích từ: {file_name} ---\n{node.text}\n")
+                cleaned = _clean_node_text(node.text)
+                if cleaned:
+                    parts.append(f"--- Trích từ: {file_name} ---\n{cleaned}\n")
+
+            if not parts:
+                return "Không tìm thấy nội dung hợp lệ trong văn bản pháp luật."
+
             return "\n".join(parts)
 
         except Exception as e:

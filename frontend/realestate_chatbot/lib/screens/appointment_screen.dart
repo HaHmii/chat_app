@@ -17,10 +17,6 @@ class AppointmentScreenState extends State<AppointmentScreen> {
   late Future<List<Appointment>> _futureAppointments;
 
   bool get _isGuest => AppConfig.role == 'guest';
-  bool get _isOwnerMode =>
-      AppConfig.role == 'owner' ||
-      AppConfig.role == 'staff' ||
-      AppConfig.role == 'admin';
 
   @override
   void initState() {
@@ -29,13 +25,7 @@ class AppointmentScreenState extends State<AppointmentScreen> {
   }
 
   Future<List<Appointment>> _loadAppointments() {
-    if (_isGuest) {
-      return _appointmentService.getMyAppointments();
-    }
-    if (_isOwnerMode) {
-      return _appointmentService.getOwnerAppointments();
-    }
-    return Future.value([]);
+    return _appointmentService.getMyAppointments();
   }
 
   void reload() {

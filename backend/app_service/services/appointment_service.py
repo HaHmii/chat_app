@@ -1,11 +1,9 @@
 from datetime import datetime, timezone
 import logging
 from typing import Optional
-
 from fastapi import HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-
 from models.appointment import Appointment, AppointmentCancelledBy, AppointmentStatus
 from models.property import Property, PropertyStatus
 from models.user import User, UserRole
@@ -13,20 +11,16 @@ from services.rocketchat_service import rc_service
 
 logger = logging.getLogger(__name__)
 
-
 class AppointmentCreate(BaseModel):
     property_id: int
     proposed_time: datetime
     note: Optional[str] = Field(None, max_length=2000)
 
-
 class AppointmentConfirm(BaseModel):
     confirmed_time: Optional[datetime] = None
 
-
 class AppointmentCounterProposal(BaseModel):
     counter_proposed_time: datetime
-
 
 class AppointmentCancel(BaseModel):
     cancelled_by: AppointmentCancelledBy
@@ -68,20 +62,21 @@ class AppointmentService:
             )
         return appointment
 
-    def _ensure_owner_access(
+    def _ensure_access(
         self,
+        role: list[UserRole],
         db: Session,
         appointment: Appointment,
         current_user: User,
     ) -> Property:
-        if current_user.role not in [UserRole.owner, UserRole.staff, UserRole.admin]:
+        if current_user.role not in role:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Bạn không có quyền thao tác lịch hẹn này",
             )
 
         property_item = self._get_property_or_404(db, appointment.property_id)
-        if current_user.role == UserRole.owner and property_item.owner_id != current_user.id:
+        if current_user.role in role  and (appointment.owner_id != current_user.id or appointment.guest_id != current_user.id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Bạn không có quyền thao tác lịch hẹn của căn nhà này",
@@ -175,66 +170,26 @@ class AppointmentService:
 
     def get_my_appointments(self, db: Session, current_user: User):
         try:
-            if current_user.role != UserRole.guest:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Chỉ tài khoản khách mới được xem lịch đã đặt",
-                )
+            query = (db.query(Appointment, Property)
+                .join(Property, Property.id == Appointment.property_id)
+                .order_by(Appointment.created_at.desc())
+            )
+            
+            if current_user.role == UserRole.guest:
+              query = query.filter(Appointment.guest_id == current_user.id)
+            elif current_user.role == UserRole.owner:
+              query = query.filter(Appointment.owner_id == current_user.id)          
 
             return (
-                db.query(Appointment, Property)
-                .join(Property, Property.id == Appointment.property_id)
-                .filter(Appointment.guest_id == current_user.id)
-                .order_by(Appointment.created_at.desc())
-                .all()
+                query.all()
             )
         except HTTPException:
             raise
         except Exception as e:
-            logger.error("Error getting guest appointments: %s", str(e), exc_info=True)
+            logger.error("Error getting appointments: %s", str(e), exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Lỗi hệ thống khi lấy danh sách lịch hẹn: {str(e)}",
-            )
-
-    def get_property_appointments(
-        self,
-        db: Session,
-        current_user: User,
-        property_id: Optional[int] = None,
-    ):
-        try:
-            if current_user.role not in [UserRole.owner, UserRole.staff, UserRole.admin]:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Bạn không có quyền xem lịch hẹn của bất động sản",
-                )
-
-            query = (
-                db.query(Appointment, Property, User)
-                .join(Property, Property.id == Appointment.property_id)
-                .join(User, User.id == Appointment.guest_id)
-            )
-
-            if property_id is not None:
-                property_item = self._get_property_or_404(db, property_id)
-                if current_user.role == UserRole.owner and property_item.owner_id != current_user.id:
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="Bạn không có quyền xem lịch hẹn của căn nhà này",
-                    )
-                query = query.filter(Appointment.property_id == property_id)
-            elif current_user.role == UserRole.owner:
-                query = query.filter(Appointment.owner_id == current_user.id)
-
-            return query.order_by(Appointment.created_at.desc()).all()
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error("Error getting property appointments: %s", str(e), exc_info=True)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Lỗi hệ thống khi lấy lịch hẹn theo căn nhà: {str(e)}",
             )
 
     def confirm_appointment(
@@ -246,7 +201,7 @@ class AppointmentService:
     ) -> Appointment:
         try:
             appointment = self._get_appointment_or_404(db, appointment_id)
-            self._ensure_owner_access(db, appointment, current_user)
+            self._ensure_access(db, ["owner", "admin"], appointment, current_user)
 
             if appointment.status not in [
                 AppointmentStatus.pending,
@@ -302,7 +257,7 @@ class AppointmentService:
     ) -> Appointment:
         try:
             appointment = self._get_appointment_or_404(db, appointment_id)
-            property_item = self._ensure_owner_access(db, appointment, current_user)
+            property_item = self._ensure_access(db, ["owner"], appointment, current_user)
 
             if appointment.status not in [
                 AppointmentStatus.pending,
@@ -354,7 +309,7 @@ class AppointmentService:
     ) -> Appointment:
         try:
             appointment = self._get_appointment_or_404(db, appointment_id)
-            self._ensure_owner_access(db, appointment, current_user)
+            self._ensure_access(db, ["owner", "guest", "admin"], appointment, current_user)
 
             if appointment.status in [
                 AppointmentStatus.cancelled,
@@ -364,12 +319,6 @@ class AppointmentService:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Lịch hẹn này không thể hủy nữa",
-                )
-
-            if cancel_in.cancelled_by == AppointmentCancelledBy.guest:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Chủ nhà không thể hủy lịch với cancelled_by = guest",
                 )
 
             appointment.status = AppointmentStatus.cancelled

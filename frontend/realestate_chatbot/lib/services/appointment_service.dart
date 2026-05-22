@@ -30,28 +30,6 @@ class AppointmentService {
     throw Exception(_readErrorMessage(response.body));
   }
 
-  Future<List<Appointment>> getOwnerAppointments({int? propertyId}) async {
-    final token = await _getToken();
-    var url = '${AppConfig.baseAppUrl}/appointments/property-appointments';
-    if (propertyId != null) {
-      url += '?property_id=$propertyId';
-    }
-
-    final response = await http.get(
-      Uri.parse(url),
-      headers: {'Authorization': 'Bearer $token'},
-    );
-
-    if (response.statusCode == 200) {
-      final List data = jsonDecode(response.body);
-      return data
-          .map((item) => Appointment.fromJson(item as Map<String, dynamic>))
-          .toList();
-    }
-
-    throw Exception(_readErrorMessage(response.body));
-  }
-
   Future<Map<String, dynamic>> createAppointment({
     required int propertyId,
     required DateTime proposedTime,

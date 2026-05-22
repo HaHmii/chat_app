@@ -37,12 +37,13 @@ _slot_chain = _SLOT_PROMPT | _SLOT_LLM | StrOutputParser()
 async def _fetch_user_token(rc_username: str) -> str | None:
     """Lấy JWT của user từ app_service bằng RC username."""
     try:
-        resp = httpx.post(
-            f"{settings.web_service_url}/auth/internal/token",
-            params={"rc_username": rc_username},
-            headers={"x-internal-key": settings.internal_api_key},
-            timeout=5.0,
-        )
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"{settings.web_service_url}/auth/internal/token",
+                params={"rc_username": rc_username},
+                headers={"x-internal-key": settings.internal_api_key},
+                timeout=5.0,
+            )
         if resp.status_code == 200:
             return resp.json().get("access_token")
         logger.warning(f"[Session] fetch token failed: {resp.status_code} {resp.text[:100]}")
@@ -125,6 +126,46 @@ async def save_session(
     session.last_active_at = vn_now()
     session.turn_count = (session.turn_count or 0) + 1
     await db.commit()
+
+
+async def escalate_session(
+    db: AsyncSession,
+    session_id: int,
+    reason: str = "user_request",
+) -> None:
+    """Đánh dấu session là escalated — AI sẽ không xử lý các tin nhắn tiếp theo."""
+    stmt = select(ConversationSession).where(ConversationSession.id == session_id)
+    result = await db.execute(stmt)
+    session = result.scalar_one_or_none()
+    if session is None:
+        return
+    session.is_escalated = True
+    session.escalated_at = vn_now()
+    session.escalation_reason = reason
+    await db.commit()
+    logger.info(f"[Session] escalated id={session_id} reason={reason!r}")
+
+
+async def de_escalate_session(
+    db: AsyncSession,
+    room_id: str,
+    staff_id: str | None = None,
+) -> bool:
+    """Nhân viên đã xử lý xong — reset session để AI tiếp tục hỗ trợ."""
+    stmt = select(ConversationSession).where(ConversationSession.rocketchat_room_id == room_id)
+    result = await db.execute(stmt)
+    session = result.scalar_one_or_none()
+    if session is None:
+        return False
+    session.is_escalated = False
+    session.escalated_at = None
+    session.escalation_reason = None
+    session.staff_id = staff_id
+    session.messages = []
+    session.extracted_slots = {}
+    await db.commit()
+    logger.info(f"[Session] de-escalated room={room_id} by staff={staff_id!r}")
+    return True
 
 
 async def extract_and_merge_slots(

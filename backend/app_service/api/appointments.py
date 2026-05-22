@@ -66,13 +66,11 @@ def serialize_appointment(
         "confirmed_time": appointment.confirmed_time.isoformat()
         if appointment.confirmed_time
         else None,
-        "note": appointment.note,
         "status": appointment.status.value
         if isinstance(appointment.status, AppointmentStatus)
         else appointment.status,
         "cancelled_by": appointment.cancelled_by.value if appointment.cancelled_by else None,
         "cancel_reason": appointment.cancel_reason,
-        "rating": appointment.rating,
         "created_at": appointment.created_at.isoformat() if appointment.created_at else None,
         "updated_at": appointment.updated_at.isoformat() if appointment.updated_at else None,
     }

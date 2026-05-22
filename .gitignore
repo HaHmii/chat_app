@@ -1,11 +1,8 @@
 .idea
-scraper
-PDF File
 rocketchat-server/data
 *.txt
-backend/.env
-backend/law-data
 backend/app_service/.env
 backend/ai_service/.env
+other-stuff
 */*/__pycache__/
 */*/*/__pycache__/

@@ -59,6 +59,10 @@ class MessageModel {
       cleanText = rawText.replaceAll(match[0]!, '').trim();
     }
 
+    // Livechat visitor messages carry a `token` field; agent/bot messages do not.
+    final isMe = (json['token'] != null && json['token'] == AppConfig.visitorToken) ||
+        senderId == AppConfig.userId;
+
     return MessageModel(
       id: json['_id'] ?? '',
       text: cleanText,
@@ -66,7 +70,7 @@ class MessageModel {
       senderUsername: username,
       createdAt: parsedTime,
       isBot: username == botUsername,
-      isMe: senderId == AppConfig.userId,
+      isMe: isMe,
       properties: properties,
     );
   }

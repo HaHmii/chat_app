@@ -2,19 +2,19 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from database import get_db
 from models.user import User, UserRole
-from models.property import Property, PropertyCategory, PropertyStatus, PropertyType
+from models.property import Property, PropertyCategory, PropertyImage, PropertyStatus, PropertyType
 from models.district import District # Đảm bảo import để register table
 from services.property_service import property_service, PropertyCreate, PropertyReview
 from jose import jwt, JWTError
 from fastapi.security import OAuth2PasswordBearer
 from typing import List, Optional
-import os
+from config import settings
 
 router = APIRouter(prefix="/properties", tags=["Properties"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key")
-ALGORITHM = os.getenv("ALGORITHM", "HS256")
+SECRET_KEY = settings.secret_key
+ALGORITHM = settings.algorithm
 
 def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)) -> User:
     credentials_exception = HTTPException(
@@ -160,15 +160,40 @@ def get_property_detail(property_id: int, db: Session = Depends(get_db)):
         "bedrooms": prop.bedrooms,
         "bathrooms": prop.bathrooms,
         "direction": prop.direction,
-        "legal_status": prop.legal_status,
-        "amenities": prop.amenities or [],
         "thumbnail_url": images[0] if images else None,
         "images": images,
         "owner_name": owner.full_name if owner else None,
         "owner_phone": owner.phone_number if owner else None,
         "created_at": prop.created_at.isoformat() if prop.created_at else None,
-        "expires_at": prop.expires_at.isoformat() if prop.expires_at else None,
     }
+
+
+@router.get("/{property_id}/images", response_model=List[dict])
+def get_property_images(property_id: int, db: Session = Depends(get_db)):
+    prop = (
+        db.query(Property)
+        .filter(Property.id == property_id, Property.status == PropertyStatus.approved)
+        .first()
+    )
+    if not prop:
+        raise HTTPException(status_code=404, detail="Không tìm thấy tin đăng")
+
+    images = (
+        db.query(PropertyImage)
+        .filter(PropertyImage.property_id == property_id)
+        .order_by(PropertyImage.sort_order)
+        .all()
+    )
+
+    return [
+        {
+            "id": img.id,
+            "url": img.url,
+            "sort_order": img.sort_order,
+            "is_thumbnail": img.sort_order == 0,
+        }
+        for img in images
+    ]
 
 
 @router.patch("/{property_id}/review")
@@ -189,7 +214,11 @@ def create_property(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role not in [UserRole.owner, UserRole.staff, UserRole.admin]:
+    if current_user.role == UserRole.guest:
+        current_user.role = UserRole.owner
+        db.commit()
+        db.refresh(current_user)
+    elif current_user.role not in [UserRole.owner, UserRole.staff, UserRole.admin]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Chỉ tài khoản Chủ nhà mới có quyền thực hiện chức năng này."
