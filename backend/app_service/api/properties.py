@@ -4,7 +4,7 @@ from database import get_db
 from models.user import User, UserRole
 from models.property import Property, PropertyCategory, PropertyImage, PropertyStatus, PropertyType
 from models.district import District # Đảm bảo import để register table
-from services.property_service import property_service, PropertyCreate, PropertyReview
+from services.property_service import property_service, PropertyCreate, PropertyReview, PropertyUpdate
 from jose import jwt, JWTError
 from fastapi.security import OAuth2PasswordBearer
 from typing import List, Optional
@@ -102,6 +102,42 @@ def get_properties(
             "thumbnail_url": thumbnail,
         })
     return result
+
+@router.get("/my", response_model=List[dict])
+def get_my_properties(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role not in [UserRole.owner, UserRole.staff, UserRole.admin]:
+        raise HTTPException(status_code=403, detail="Chỉ chủ nhà mới có danh sách tin của mình")
+    properties = property_service.get_my_properties(db, current_user)
+    result = []
+    for p in properties:
+        thumbnail = p.images[0].url if p.images else None
+        result.append({
+            "id": p.id,
+            "title": p.title,
+            "price": float(p.price),
+            "price_unit": p.price_unit,
+            "area": float(p.area),
+            "address": p.address,
+            "type": p.type,
+            "category": p.category,
+            "bedrooms": p.bedrooms,
+            "bathrooms": p.bathrooms,
+            "thumbnail_url": thumbnail,
+            "status": p.status,
+            "district_id": p.district_id,
+            "ward": p.ward,
+            "street": p.street,
+            "description": p.description,
+            "direction": p.direction,
+            "price_unit": p.price_unit,
+            "rejection_reason": p.rejection_reason,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+        })
+    return result
+
 
 @router.get("/pending", response_model=List[dict])
 def get_pending_properties(
@@ -208,19 +244,35 @@ def review_property(
     return {"message": f"Đã {action_text} tin đăng thành công"}
 
 
+@router.put("/{property_id}")
+def update_property(
+    property_id: int,
+    update_in: PropertyUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    property_service.update_property(db, property_id, update_in, current_user)
+    return {"message": "Cập nhật tin đăng thành công, vui lòng chờ duyệt lại"}
+
+
+@router.delete("/{property_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_property(
+    property_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    property_service.delete_property(db, property_id, current_user)
+
+
 @router.post("/create", status_code=status.HTTP_201_CREATED)
 def create_property(
     prop_in: PropertyCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role == UserRole.guest:
-        current_user.role = UserRole.owner
-        db.commit()
-        db.refresh(current_user)
-    elif current_user.role not in [UserRole.owner, UserRole.staff, UserRole.admin]:
+    if current_user.role not in [UserRole.owner, UserRole.staff, UserRole.admin]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Chỉ tài khoản Chủ nhà mới có quyền thực hiện chức năng này."
+            detail="Chỉ tài khoản Chủ nhà mới có quyền đăng tin."
         )
     return property_service.create_property(db, prop_in, current_user)

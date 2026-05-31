@@ -84,13 +84,13 @@ class AppointmentService:
 
         return property_item
 
-    def _send_guest_notification(self, guest: User, message: str):
-        if not guest.rc_room_id:
+    def _send_user_notification(self, user: User, message: str):
+        if not user.rc_room_id:
             return
         try:
-            rc_service.send_message_via_webhook(guest.rc_room_id, message)
+            rc_service.send_message_via_webhook(user.rc_room_id, message)
         except Exception as e:
-            logger.warning("Failed to notify guest %s: %s", guest.id, str(e))
+            logger.warning("Failed to notify user %s: %s", user.id, str(e))
 
     def create_appointment(
         self,
@@ -99,7 +99,7 @@ class AppointmentService:
         current_user: User,
     ) -> Appointment:
         try:
-            if current_user.role != UserRole.guest:
+            if current_user.role != UserRole.user:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Chỉ tài khoản khách mới được đặt lịch hẹn",
@@ -134,7 +134,7 @@ class AppointmentService:
                 db.query(Appointment)
                 .filter(
                     Appointment.property_id == appointment_in.property_id,
-                    Appointment.guest_id == current_user.id,
+                    Appointment.user_id == current_user.id,
                 )
                 .count()
             )
@@ -146,7 +146,7 @@ class AppointmentService:
 
             new_appointment = Appointment(
                 property_id=property_item.id,
-                guest_id=current_user.id,
+                user_id=current_user.id,
                 owner_id=property_item.owner_id,
                 proposed_time=proposed_time,
                 note=appointment_in.note,
@@ -175,8 +175,8 @@ class AppointmentService:
                 .order_by(Appointment.created_at.desc())
             )
             
-            if current_user.role == UserRole.guest:
-              query = query.filter(Appointment.guest_id == current_user.id)
+            if current_user.role == UserRole.user:
+              query = query.filter(Appointment.user_id == current_user.id)
             elif current_user.role == UserRole.owner:
               query = query.filter(Appointment.owner_id == current_user.id)          
 
@@ -278,13 +278,13 @@ class AppointmentService:
             db.commit()
             db.refresh(appointment)
 
-            guest = db.query(User).filter(User.id == appointment.guest_id).first()
-            if guest:
+            user = db.query(User).filter(User.id == appointment.user_id).first()
+            if user:
                 display_time = appointment.counter_proposed_time.astimezone(timezone.utc).strftime(
                     "%H:%M %d/%m/%Y UTC"
                 )
-                self._send_guest_notification(
-                    guest,
+                self._send_user_notification(
+                    user,
                     f"Chủ nhà đã đề xuất lại lịch xem '{property_item.title}' vào {display_time}.",
                 )
 
@@ -309,7 +309,7 @@ class AppointmentService:
     ) -> Appointment:
         try:
             appointment = self._get_appointment_or_404(db, appointment_id)
-            self._ensure_access(db, ["owner", "guest", "admin"], appointment, current_user)
+            self._ensure_access(db, ["owner", "user", "admin"], appointment, current_user)
 
             if appointment.status in [
                 AppointmentStatus.cancelled,

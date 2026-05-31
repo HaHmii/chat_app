@@ -68,7 +68,7 @@ class ProfileScreen extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               children: [
                 _buildInfoTile(Icons.email_outlined, 'Email', AppConfig.email ?? 'Chưa cập nhật'),
-                _buildInfoTile(Icons.phone_android_outlined, 'Tài khoản RocketChat ID', AppConfig.userId ?? 'N/A'),
+                _buildInfoTile(Icons.phone_android_outlined, 'Tài khoản RocketChat', AppConfig.visitorToken ?? 'N/A'),
                 const Divider(height: 40),
                 
                 // Nút Đăng xuất

@@ -1,3 +1,4 @@
+import base64
 import json
 import logging
 from datetime import timedelta
@@ -34,6 +35,17 @@ _SLOT_PROMPT = ChatPromptTemplate.from_messages([
 _slot_chain = _SLOT_PROMPT | _SLOT_LLM | StrOutputParser()
 
 
+def _decode_jwt_role(token: str) -> str | None:
+    """Decode JWT payload (không verify) để lấy claim 'role'."""
+    try:
+        payload_b64 = token.split('.')[1]
+        payload_b64 += '=' * (-len(payload_b64) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(payload_b64))
+        return payload.get("role")
+    except Exception:
+        return None
+
+
 async def _fetch_user_token(rc_username: str) -> str | None:
     """Lấy JWT của user từ app_service bằng RC username."""
     try:
@@ -67,13 +79,18 @@ async def get_or_create_session(
 
     if session is None:
         user_token = await _fetch_user_token(rc_username) if rc_username else None
+        initial_slots: dict = {}
+        if user_token:
+            role = _decode_jwt_role(user_token)
+            if role:
+                initial_slots["user_role"] = role
         session = ConversationSession(
             rocketchat_room_id=room_id,
             pipeline=pipeline,
-            user_id=rc_username,
+            rc_user=rc_username,
             user_token=user_token,
             messages=[],
-            extracted_slots={},
+            extracted_slots=initial_slots,
         )
         db.add(session)
         await db.commit()
@@ -91,8 +108,13 @@ async def get_or_create_session(
             user_token = await _fetch_user_token(rc_username)
             if user_token and user_token != session.user_token:
                 session.user_token = user_token
+                role = _decode_jwt_role(user_token)
+                if role:
+                    current_slots = dict(session.extracted_slots or {})
+                    current_slots["user_role"] = role
+                    session.extracted_slots = current_slots
                 await db.commit()
-                logger.info(f"[Session] refreshed user token id={session.id} user={rc_username}")
+                logger.info(f"[Session] refreshed user token id={session.id} user={rc_username} role={role!r}")
 
     history = PostgresChatMessageHistory(session_id=session.id)
     history.load(session.messages or [])
@@ -160,7 +182,7 @@ async def de_escalate_session(
     session.is_escalated = False
     session.escalated_at = None
     session.escalation_reason = None
-    session.staff_id = staff_id
+    session.rc_staff = staff_id
     session.messages = []
     session.extracted_slots = {}
     await db.commit()

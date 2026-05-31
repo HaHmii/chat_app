@@ -79,7 +79,7 @@ class ChatProvider extends ChangeNotifier {
       final userMsg = MessageModel(
         id: msgId.isNotEmpty ? msgId : 'tmp_${DateTime.now().millisecondsSinceEpoch}',
         text: text.trim(),
-        senderId: AppConfig.userId ?? '',
+        senderId: AppConfig.visitorToken ?? '',
         senderUsername: AppConfig.visitorToken ?? '',
         createdAt: DateTime.now(),
         isBot: false,

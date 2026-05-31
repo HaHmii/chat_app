@@ -20,8 +20,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   final _authService = AuthService();
   bool _isLoading = false;
+  String? _selectedRole; // 'user' hoặc 'owner'
 
   void _handleRegister() async {
+    if (_selectedRole == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng chọn nhu cầu của bạn!')),
+      );
+      return;
+    }
+
     if (_phoneController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Vui lòng nhập số điện thoại!')),
@@ -52,6 +60,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         email: _emailController.text.trim(),
         phoneNumber: _phoneController.text.trim(),
         password: _passwordController.text,
+        role: _selectedRole!,
       );
 
       if (!mounted) return;
@@ -89,6 +98,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -145,13 +156,121 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 controller: _confirmController,
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 8),
+
+              // --- Chọn nhu cầu ---
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Nhu cầu của bạn là gì?',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[800],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _RoleCard(
+                      icon: Icons.search_rounded,
+                      title: 'Tìm mua / thuê',
+                      subtitle: 'Tôi muốn tìm bất động sản',
+                      selected: _selectedRole == 'user',
+                      selectedColor: colorScheme.primary,
+                      onTap: () => setState(() => _selectedRole = 'user'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _RoleCard(
+                      icon: Icons.home_work_rounded,
+                      title: 'Bán / cho thuê',
+                      subtitle: 'Tôi muốn đăng tin bất động sản',
+                      selected: _selectedRole == 'owner',
+                      selectedColor: Colors.green[700]!,
+                      onTap: () => setState(() => _selectedRole = 'owner'),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 28),
 
               _isLoading
                   ? const CircularProgressIndicator()
                   : PrimaryButton(text: 'ĐĂNG KÝ', onPressed: _handleRegister),
+
+              const SizedBox(height: 20),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RoleCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool selected;
+  final Color selectedColor;
+  final VoidCallback onTap;
+
+  const _RoleCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.selected,
+    required this.selectedColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+        decoration: BoxDecoration(
+          color: selected ? selectedColor.withValues(alpha: 0.08) : Colors.grey[50],
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected ? selectedColor : Colors.grey[300]!,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              size: 32,
+              color: selected ? selectedColor : Colors.grey[400],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: selected ? selectedColor : Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                color: selected ? selectedColor.withValues(alpha: 0.8) : Colors.grey[500],
+              ),
+            ),
+          ],
         ),
       ),
     );

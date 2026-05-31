@@ -21,8 +21,6 @@ class AuthService {
       await _storage.write(key: 'jwt_token', value: data['access_token']);
 
       AppConfig.setRCAuth(
-        uid: data['rc_user_id'],
-        token: data['rc_auth_token'],
         rid: data['rc_room_id'],
         vtoken: data['rc_visitor_token'],
       );
@@ -51,6 +49,7 @@ class AuthService {
     required String email,
     required String phoneNumber,
     required String password,
+    required String role,
   }) async {
     final url = Uri.parse('${AppConfig.baseAppUrl}/auth/register');
 
@@ -63,6 +62,7 @@ class AuthService {
         'email': email,
         'phone_number': phoneNumber,
         'password': password,
+        'role': role,
       }),
     );
 
@@ -71,8 +71,6 @@ class AuthService {
 
       // Sau khi đăng ký, backend cũng trả về thông tin RC (nếu có)
       AppConfig.setRCAuth(
-        uid: data['rc_user_id'],
-        token: data['rc_auth_token'],
         rid: data['rc_room_id'],
         vtoken: data['rc_visitor_token'],
       );
@@ -91,9 +89,35 @@ class AuthService {
     return await _storage.read(key: 'jwt_token');
   }
 
+  Future<Map<String, dynamic>> initChatRoom() async {
+    final token = await getToken();
+    if (token == null) return {'success': false, 'message': 'Chưa đăng nhập'};
+
+    final url = Uri.parse('${AppConfig.baseAppUrl}/auth/init-chat-room');
+    final response = await http.post(
+      url,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      AppConfig.setRCAuth(
+        rid: data['rc_room_id'],
+        vtoken: data['rc_visitor_token'],
+      );
+      return {'success': true};
+    } else {
+      final errorData = jsonDecode(response.body);
+      return {
+        'success': false,
+        'message': errorData['detail'] ?? 'Không thể tạo phòng chat',
+      };
+    }
+  }
+
   Future<void> logout() async {
     await _storage.delete(key: 'jwt_token');
-    AppConfig.setRCAuth(uid: null, token: null, rid: null, vtoken: null);
+    AppConfig.setRCAuth(rid: null, vtoken: null);
     AppConfig.setUserInfo(name: null, uname: null, mail: null, urole: null);
   }
 }

@@ -18,6 +18,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     phone_number: str = Field(..., min_length=9, max_length=15)
+    role: Optional[UserRole] = UserRole.user
 
 class UserResponse(BaseModel):
     id: int
@@ -26,8 +27,6 @@ class UserResponse(BaseModel):
     email: Optional[EmailStr]
     role: UserRole
     is_active: bool
-    rc_user_id: Optional[str] = None
-    rc_auth_token: Optional[str] = None
     rc_room_id: Optional[str] = None
 
     class Config:
@@ -39,8 +38,6 @@ class Token(BaseModel):
     role: Optional[str] = None
     full_name: Optional[str] = None
     email: Optional[str] = None
-    rc_user_id: Optional[str] = None
-    rc_auth_token: Optional[str] = None
     rc_room_id: Optional[str] = None
     rc_visitor_token: Optional[str] = None
 
@@ -64,44 +61,16 @@ def create_access_token(data: dict):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-# --- 3. ROCKETCHAT INTEGRATION LOGIC ---
-def sync_rocketchat_user(db: Session, user: User, password: str):
-    """Đảm bảo user có tài khoản RC, token và Livechat room với bot.
+def init_livechat_room(db: Session, user: User):
+    """Tạo hoặc lấy lại Livechat room cho user — gọi khi user mở màn hình chatbot.
 
-    Flow Omnichannel:
-      1. Tạo RC user (dùng cho DDP auth trong Flutter)
-      2. Login lấy authToken
-      3. Đăng ký Livechat visitor với token = username (duy nhất, ổn định)
-      4. Tạo/lấy Livechat room cho visitor đó
+    Đăng ký visitor nếu chưa có, sau đó tạo/reuse room còn mở.
+    RC tự reuse room nếu còn open, tạo mới nếu đã đóng.
     """
     try:
-        # 1. Tạo RC user nếu chưa có (vẫn cần cho Flutter DDP auth)
-        if not user.rc_user_id:
-            logger.info(f"Creating RocketChat user for {user.username}")
-            rc_user_res = rc_service.create_user(
-                name=user.full_name,
-                email=user.email,
-                username=user.username,
-                password=password,
-            )
-            if rc_user_res.get("success"):
-                user.rc_user_id = rc_user_res["user"]["_id"]
-                db.commit()
-            else:
-                logger.error(f"Failed to create RC user: {rc_user_res}")
-
-        # 2. Login lấy authToken mới nhất (cần cho Flutter DDP login)
-        logger.info(f"Logging in RocketChat user {user.username}")
-        rc_login_res = rc_service.login_user(user.username, password)
-        if rc_login_res.get("status") == "success":
-            user.rc_auth_token = rc_login_res["data"]["authToken"]
-            user.rc_user_id = rc_login_res["data"]["userId"]
-            db.commit()
-        else:
-            logger.error(f"Failed to login RC user: {rc_login_res}")
+        visitor_token = user.username
 
         # 3. Đăng ký Livechat visitor (token = username — cố định, không đổi)
-        visitor_token = user.username
         rc_service.register_livechat_visitor(
             token=visitor_token,
             name=user.full_name,
@@ -110,8 +79,7 @@ def sync_rocketchat_user(db: Session, user: User, password: str):
         user.rc_visitor_token = visitor_token
         db.commit()
 
-        # 4. Tạo/lấy Livechat room — gọi mỗi lần login để tự động tạo mới
-        #    khi room cũ đã bị đóng (RC reuse nếu còn mở, tạo mới nếu đã đóng)
+        # 4. Tạo/lấy Livechat room
         logger.info(f"Getting/creating Livechat room for visitor {visitor_token!r}")
         result = rc_service.create_livechat_room(visitor_token)
         if result:
@@ -124,6 +92,6 @@ def sync_rocketchat_user(db: Session, user: User, password: str):
             logger.error(f"Failed to get/create livechat room for {user.username}")
 
     except Exception as e:
-        logger.error(f"sync_rocketchat_user exception: {e}", exc_info=True)
+        logger.error(f"init_livechat_room exception: {e}", exc_info=True)
 
     return user

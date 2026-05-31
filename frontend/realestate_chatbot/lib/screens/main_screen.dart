@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../config/app_config.dart';
 import '../models/property_model.dart';
+import '../services/auth_service.dart';
 import '../services/property_service.dart';
 import 'ai_consultant_screen.dart';
 import 'appointment_screen.dart';
+import 'my_properties_screen.dart';
 import 'profile_screen.dart';
 import 'property_detail_screen.dart';
 import 'review_screen.dart';
@@ -49,18 +51,27 @@ class _MainScreenState extends State<MainScreen> {
   _PropertyFilter _activeFilter = const _PropertyFilter();
   List<Map<String, dynamic>> _districts = [];
   final PropertyService _propertyService = PropertyService();
+  final AuthService _authService = AuthService();
+  bool _isInitingChat = false;
   late Future<List<Property>> _futureProperties;
   final _reviewKey = GlobalKey<ReviewScreenState>();
+  final _myPropertiesKey = GlobalKey<MyPropertiesScreenState>();
   final _appointmentKey = GlobalKey<AppointmentScreenState>();
 
   bool get isOwner => AppConfig.role == 'owner';
   bool get isAdmin => AppConfig.role == 'admin';
-  int get _profileIndex => isAdmin ? 3 : 2;
-  int get _reviewIndex => 1;
-  int get _appointmentIndex => isAdmin ? 2 : 1;
+
+  // Admin:  [Khám phá(0), Duyệt tin(1), Lịch hẹn(2), Cá nhân(3)]
+  // Owner:  [Khám phá(0), Tin của tôi(1), Lịch hẹn(2), Cá nhân(3)]
+  // Guest:  [Khám phá(0), Lịch hẹn(1), Cá nhân(2)]
+  int get _profileIndex => (isAdmin || isOwner) ? 3 : 2;
+  int get _reviewIndex => 1;          // admin only
+  int get _myPropertiesIndex => 1;    // owner only
+  int get _appointmentIndex => (isAdmin || isOwner) ? 2 : 1;
 
   String get _appBarTitle {
     if (isAdmin && _selectedIndex == _reviewIndex) return 'Duyệt tin';
+    if (isOwner && _selectedIndex == _myPropertiesIndex) return 'Tin của tôi';
     if (_selectedIndex == _appointmentIndex) return 'Lịch hẹn của tôi';
     if (isOwner) return 'Quản lý & Tư vấn';
     return 'Bất động sản Hà Nội';
@@ -88,6 +99,26 @@ class _MainScreenState extends State<MainScreen> {
 
   Future<void> _refreshData() async {
     _fetchData();
+  }
+
+  Future<void> _openChatbot() async {
+    setState(() => _isInitingChat = true);
+    final result = await _authService.initChatRoom();
+    if (!mounted) return;
+    setState(() => _isInitingChat = false);
+    if (result['success'] == true) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const AiConsultantScreen()),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message'] ?? 'Không thể mở chat'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Future<void> _showFilterSheet() async {
@@ -153,6 +184,7 @@ class _MainScreenState extends State<MainScreen> {
         children: [
           _buildHomeTab(colorScheme),
           if (isAdmin) ReviewScreen(key: _reviewKey),
+          if (isOwner) MyPropertiesScreen(key: _myPropertiesKey),
           AppointmentScreen(key: _appointmentKey),
           const ProfileScreen(),
         ],
@@ -179,17 +211,19 @@ class _MainScreenState extends State<MainScreen> {
                 ],
                 FloatingActionButton.extended(
                   heroTag: 'ai_chat',
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const AiConsultantScreen(),
-                      ),
-                    );
-                  },
+                  onPressed: _isInitingChat ? null : _openChatbot,
                   backgroundColor: colorScheme.primary,
                   foregroundColor: Colors.white,
-                  icon: const Icon(Icons.auto_awesome),
+                  icon: _isInitingChat
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Icon(Icons.auto_awesome),
                   label: const Text(
                     'AI Tư Vấn',
                     style: TextStyle(fontWeight: FontWeight.bold),
@@ -200,13 +234,13 @@ class _MainScreenState extends State<MainScreen> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (int index) {
-          if (isAdmin &&
-              index == _reviewIndex &&
-              _selectedIndex != _reviewIndex) {
+          if (isAdmin && index == _reviewIndex && _selectedIndex != _reviewIndex) {
             _reviewKey.currentState?.reload();
           }
-          if (index == _appointmentIndex &&
-              _selectedIndex != _appointmentIndex) {
+          if (isOwner && index == _myPropertiesIndex && _selectedIndex != _myPropertiesIndex) {
+            _myPropertiesKey.currentState?.reload();
+          }
+          if (index == _appointmentIndex && _selectedIndex != _appointmentIndex) {
             _appointmentKey.currentState?.reload();
           }
           setState(() => _selectedIndex = index);
@@ -223,6 +257,12 @@ class _MainScreenState extends State<MainScreen> {
               icon: Icon(Icons.rate_review_outlined),
               selectedIcon: Icon(Icons.rate_review),
               label: 'Duyệt tin',
+            ),
+          if (isOwner)
+            const NavigationDestination(
+              icon: Icon(Icons.home_work_outlined),
+              selectedIcon: Icon(Icons.home_work),
+              label: 'Tin của tôi',
             ),
           const NavigationDestination(
             icon: Icon(Icons.calendar_month_outlined),

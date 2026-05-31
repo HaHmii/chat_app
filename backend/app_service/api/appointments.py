@@ -47,15 +47,15 @@ def get_current_user(
 def serialize_appointment(
     appointment,
     property_item: Property,
-    guest: User = None,
+    user: User = None,
 ):
     return {
         "id": appointment.id,
         "property_id": appointment.property_id,
         "property_title": property_item.title if property_item else None,
-        "guest_id": appointment.guest_id,
-        "guest_name": guest.full_name if guest else None,
-        "guest_phone": guest.phone_number if guest else None,
+        "user_id": appointment.user_id,
+        "user_name": user.full_name if user else None,
+        "user_phone": user.phone_number if user else None,
         "owner_id": appointment.owner_id,
         "proposed_time": appointment.proposed_time.isoformat()
         if appointment.proposed_time
@@ -77,8 +77,8 @@ def serialize_appointment(
 
 def serialize_single_appointment(db: Session, appointment):
     property_item = db.query(Property).filter(Property.id == appointment.property_id).first()
-    guest = db.query(User).filter(User.id == appointment.guest_id).first()
-    return serialize_appointment(appointment, property_item, guest)
+    user = db.query(User).filter(User.id == appointment.user_id).first()
+    return serialize_appointment(appointment, property_item, user)
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def create_appointment(
@@ -129,8 +129,8 @@ def get_property_appointments(
             property_id=property_id,
         )
         return [
-            serialize_appointment(appointment, property_item, guest)
-            for appointment, property_item, guest in rows
+            serialize_appointment(appointment, property_item, user)
+            for appointment, property_item, user in rows
         ]
     except HTTPException:
         raise

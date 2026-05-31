@@ -12,7 +12,6 @@ _NOMINATIM_HEADERS = {"User-Agent": "BDSHanoiChatbot/1.0 (contact: admin@bds-han
 
 
 class PropertySearchInput(BaseModel):
-    query: str = ""
     district: Optional[str] = None
     min_price: Optional[int] = None
     max_price: Optional[int] = None
@@ -61,7 +60,6 @@ class PropertySearchTool(BaseTool):
 
     def _fetch(
         self,
-        query: str = "",
         district: Optional[str] = None,
         min_price: Optional[int] = None,
         max_price: Optional[int] = None,
@@ -79,13 +77,11 @@ class PropertySearchTool(BaseTool):
             params["lat"] = lat
             params["lng"] = lng
             params["radius_km"] = radius_km
-            print(f"SEARCH  : lat={lat:.4f} lng={lng:.4f} r={radius_km}km | {params}")
-        else:
-            if query:
-                params["q"] = query
-            if district:
-                params["district"] = district
-            print(f"SEARCH  : q={query!r} district={district!r} | {params}")
+
+        if district:
+            params["district"] = district
+
+        print(f"SEARCH  : district={district!r} lat={lat} lng={lng} r={radius_km}km | {params}")
 
         if min_price is not None:
             params["min_price"] = min_price
@@ -134,11 +130,11 @@ class PropertySearchTool(BaseTool):
                 f"   Pháp lý: {p.get('legal_status', 'N/A')}"
                 f"{amenities_str}\n"
             )
+        lines.append(f"=== Hết danh sách ({len(items)} căn). KHÔNG liệt kê thêm BĐS nào khác. ===")
         return "\n".join(lines)
 
     def _run(
         self,
-        query: str = "",
         district: Optional[str] = None,
         min_price: Optional[int] = None,
         max_price: Optional[int] = None,
@@ -157,7 +153,7 @@ class PropertySearchTool(BaseTool):
             lat, lng = coords
         try:
             items = self._fetch(
-                query=query, district=district,
+                district=district,
                 min_price=min_price, max_price=max_price, min_area=min_area,
                 property_type=property_type, bedrooms=bedrooms, category=category,
                 lat=lat, lng=lng, radius_km=radius_km,
@@ -175,7 +171,6 @@ class PropertySearchTool(BaseTool):
 
     def search_raw(
         self,
-        query: str = "",
         district: Optional[str] = None,
         min_price: Optional[int] = None,
         max_price: Optional[int] = None,
@@ -195,7 +190,7 @@ class PropertySearchTool(BaseTool):
             lat, lng = coords
         try:
             items = self._fetch(
-                query=query, district=district,
+                district=district,
                 min_price=min_price, max_price=max_price, min_area=min_area,
                 property_type=property_type, bedrooms=bedrooms, category=category,
                 lat=lat, lng=lng, radius_km=radius_km,
@@ -213,7 +208,6 @@ class PropertySearchTool(BaseTool):
 
     async def _arun(
         self,
-        query: str = "",
         district: Optional[str] = None,
         min_price: Optional[int] = None,
         max_price: Optional[int] = None,
@@ -225,7 +219,7 @@ class PropertySearchTool(BaseTool):
         radius_km: float = 3.0,
     ) -> str:
         return self._run(
-            query=query, district=district,
+            district=district,
             min_price=min_price, max_price=max_price, min_area=min_area,
             property_type=property_type, bedrooms=bedrooms, category=category,
             location=location, radius_km=radius_km,

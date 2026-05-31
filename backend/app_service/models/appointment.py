@@ -12,7 +12,7 @@ class AppointmentStatus(str, enum.Enum):
     expired = "expired"
 
 class AppointmentCancelledBy(str, enum.Enum):
-    guest = "guest"
+    user = "user"
     owner = "owner"
     system = "system"
 
@@ -21,7 +21,7 @@ class Appointment(Base):
 
     id = Column(Integer, primary_key=True)
     property_id = Column(Integer, ForeignKey("properties.id", ondelete="CASCADE"), nullable=False)
-    guest_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     proposed_time = Column(DateTime, nullable=False)
     counter_proposed_time = Column(DateTime, nullable=True)

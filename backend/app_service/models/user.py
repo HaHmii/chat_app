@@ -7,7 +7,7 @@ class UserRole(str, enum.Enum):
     admin = 'admin'
     staff = 'staff'
     owner = 'owner'
-    guest = 'guest'
+    user = 'user'
 
 class User(Base):
     __tablename__ = "users"
@@ -18,11 +18,9 @@ class User(Base):
     phone_number = Column(String(15), nullable=True)
     email = Column(String(255), unique=True, nullable=True, index=True)
     password_hash = Column(Text, nullable=False)
-    role = Column(Enum(UserRole, name="user_role"), default=UserRole.guest, nullable=False)
+    role = Column(Enum(UserRole, name="user_role"), default=UserRole.user, nullable=False)
     avatar_url = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
-    rc_user_id = Column(String(100), unique=True, nullable=True)
-    rc_auth_token = Column(Text, nullable=True)
     rc_room_id = Column(String(100), unique=True, nullable=True)
     # Livechat visitor token — dùng khi room type = livechat (omnichannel)
     rc_visitor_token = Column(String(200), nullable=True)

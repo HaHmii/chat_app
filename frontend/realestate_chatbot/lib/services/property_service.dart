@@ -90,6 +90,54 @@ class PropertyService {
     throw Exception('Lỗi khi tải chi tiết bất động sản');
   }
 
+  Future<List<Property>> getMyProperties() async {
+    final token = await _storage.read(key: 'jwt_token');
+    final response = await http.get(
+      Uri.parse('${AppConfig.baseAppUrl}/properties/my'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (response.statusCode == 200) {
+      final List data = jsonDecode(response.body);
+      return data.map((item) => Property.fromJson(item)).toList();
+    }
+    throw Exception('Lỗi khi tải danh sách tin của bạn');
+  }
+
+  Future<Map<String, dynamic>> updateProperty(int id, Map<String, dynamic> propData) async {
+    final token = await _storage.read(key: 'jwt_token');
+    try {
+      final response = await http.put(
+        Uri.parse('${AppConfig.baseAppUrl}/properties/$id'),
+        headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+        body: jsonEncode(propData),
+      );
+      if (response.statusCode == 200) {
+        return {'success': true, 'message': jsonDecode(response.body)['message']};
+      }
+      final error = jsonDecode(response.body);
+      return {'success': false, 'message': error['detail'] ?? 'Cập nhật thất bại'};
+    } catch (e) {
+      return {'success': false, 'message': 'Lỗi kết nối: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> deleteProperty(int id) async {
+    final token = await _storage.read(key: 'jwt_token');
+    try {
+      final response = await http.delete(
+        Uri.parse('${AppConfig.baseAppUrl}/properties/$id'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode == 204) {
+        return {'success': true};
+      }
+      final error = jsonDecode(response.body);
+      return {'success': false, 'message': error['detail'] ?? 'Xóa thất bại'};
+    } catch (e) {
+      return {'success': false, 'message': 'Lỗi kết nối: $e'};
+    }
+  }
+
   // Đăng tin (Chủ nhà)
   Future<Map<String, dynamic>> createProperty(Map<String, dynamic> propData) async {
     final url = Uri.parse('${AppConfig.baseAppUrl}/properties/create');

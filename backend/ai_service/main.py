@@ -1,17 +1,17 @@
 import asyncio
 import json
 import logging
-import time
 from contextlib import asynccontextmanager
 
 from fastapi import BackgroundTasks, Body, FastAPI, Header, HTTPException, Request
 
-from chains.router import router_chain
+from pattern.router import router_chain
 from core.config import settings
-from handoff.agent import handoff_agent
+from pattern.agent import handoff_agent
 from core.database import AsyncSessionLocal, engine
 from models import ChatLog  # also registers ConversationSession via models/__init__.py
 from models.base import Base
+from memory.postgres_history import PostgresChatMessageHistory
 from models.schemas import EvalRequest, EvalResponse, LivechatWebhookPayload, ResolveRequest, RocketChatWebhookPayload
 from services.rocketchat_service import rc_service
 from services.session import (
@@ -119,6 +119,7 @@ async def _handle_message(room_id: str, user_name: str, text: str) -> None:
                     history=history_text,
                     extracted_slots=extracted_slots,
                     user_token=user_token,
+                    last_intent=session_data.get("last_intent"),
                 )
             else:
                 result = await router_chain.run(
@@ -161,6 +162,8 @@ async def _handle_message(room_id: str, user_name: str, text: str) -> None:
                     merged_slots["property_list_details"] = [_compact_property(p) for p in result["raw_items"]]
                 elif extracted_slots.get("property_list"):
                     merged_slots["property_list"] = extracted_slots["property_list"]
+                if extracted_slots.get("pending_post_property"):
+                    merged_slots["pending_post_property"] = extracted_slots["pending_post_property"]
             elif result.get("detected_intent") == "post_property":
                 # Giữ nguyên các slots hiện có, chỉ cập nhật pending_post_property
                 # Không chạy find_property slot extractor để tránh nhiễu
@@ -337,22 +340,78 @@ async def resolve_escalated_session(
 
 @app.post("/eval", response_model=EvalResponse)
 async def eval_pipeline(request: EvalRequest):
-    """Endpoint đánh giá pipeline AI - dùng cho testing và benchmarking."""
-    start = time.monotonic()
+    """Chạy pipeline AI như khi xử lý tin nhắn thực tế, trả về đầy đủ thông số và dữ liệu query."""
+    history_text = "(Chưa có lịch sử)"
+    if request.is_multi_turn and request.turn_history:
+        hist = PostgresChatMessageHistory(session_id=0)
+        hist.load(request.turn_history)
+        history_text = hist.format_for_prompt()
 
-    reply = f"[eval placeholder] pipeline={request.pipeline} | input={request.user_message}"
-    latency = int((time.monotonic() - start) * 1000)
+    incoming_slots = dict(request.extracted_slots or {})
+
+    # Eval mode không có session DB → decode JWT để lấy user_role (mirrors get_or_create_session)
+    if request.user_token and "user_role" not in incoming_slots:
+        from services.session import _decode_jwt_role
+        role = _decode_jwt_role(request.user_token)
+        if role:
+            incoming_slots["user_role"] = role
+
+    if request.pipeline == "handoff":
+        result = await handoff_agent.run(
+            request.user_message,
+            history=history_text,
+            extracted_slots=incoming_slots,
+            user_token=request.user_token,
+            last_intent=request.last_intent,
+        )
+    else:
+        result = await router_chain.run(
+            request.user_message,
+            history=history_text,
+            extracted_slots=incoming_slots,
+            last_intent=request.last_intent,
+            user_token=request.user_token,
+        )
+
+    # Merge slots for next turn — mirrors _handle_message session logic (no DB)
+    intent = result.get("detected_intent")
+    if intent == "find_property":
+        merged_slots = result.get("extracted_slots") or {}
+        raw_items: list = result.get("raw_items") or []
+        if raw_items:
+            merged_slots["property_list"] = [p.get("id") for p in raw_items]
+            merged_slots["property_list_details"] = [_compact_property(p) for p in raw_items]
+        elif incoming_slots.get("property_list"):
+            merged_slots["property_list"] = incoming_slots["property_list"]
+            merged_slots.setdefault("property_list_details", incoming_slots.get("property_list_details", []))
+    elif intent == "post_property":
+        merged_slots = dict(incoming_slots)
+        if result.get("pending_post_property"):
+            merged_slots["pending_post_property"] = result["pending_post_property"]
+        if result.get("clear_pending_post_property"):
+            merged_slots.pop("pending_post_property", None)
+    else:
+        merged_slots = dict(incoming_slots)
+        raw_items = result.get("raw_items") or []
+        if raw_items:
+            merged_slots["property_list"] = [p.get("id") for p in raw_items]
+            merged_slots["property_list_details"] = [_compact_property(p) for p in raw_items]
+        if result.get("pending_appointment"):
+            merged_slots["pending_appointment"] = result["pending_appointment"]
+        if result.get("clear_pending_appointment"):
+            merged_slots.pop("pending_appointment", None)
 
     return EvalResponse(
-        response=reply,
-        detected_intent=None,
-        confidence_score=None,
-        agent_chain=[request.pipeline],
-        retrieved_context=None,
-        latency_ms=latency,
-        llm_tokens_used=None,
-        eval_expected_intent=request.expected_intent,
-        eval_expected_keywords=request.expected_keywords,
-        eval_expected_slots=request.expected_slots,
-        eval_is_multi_turn=request.is_multi_turn,
+        response=result["response"],
+        detected_intent=result.get("detected_intent"),
+        confidence_score=result.get("confidence_score"),
+        agent_chain=result.get("agent_chain", []),
+        retrieved_context=result.get("retrieved_context"),
+        latency_ms=result.get("latency_ms"),
+        llm_tokens_used=result.get("llm_tokens_used"),
+        llm_calls=result.get("llm_calls"),
+        raw_items=result.get("raw_items") or [],
+        total_items_found=result.get("total_items_found"),
+        should_escalate=result.get("should_escalate", False),
+        extracted_slots=merged_slots or None,
     )

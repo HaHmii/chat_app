@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
+from jose import jwt, JWTError
 from config import settings
 from database import get_db
 from models.user import User
@@ -9,6 +10,22 @@ import logging
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 logger = logging.getLogger(__name__)
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+
+def _get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)) -> User:
+    exc = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Không thể xác thực")
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise exc
+    except JWTError:
+        raise exc
+    user = db.query(User).filter(User.id == int(user_id)).first()
+    if not user:
+        raise exc
+    return user
 
 @router.post("/register", response_model=auth_service.UserResponse)
 def register(user_in: auth_service.UserCreate, db: Session = Depends(get_db)):
@@ -30,17 +47,15 @@ def register(user_in: auth_service.UserCreate, db: Session = Depends(get_db)):
         username=user_in.username,
         email=user_in.email,
         phone_number=user_in.phone_number,
-        password_hash=hashed_password
+        password_hash=hashed_password,
+        role=user_in.role,
     )
 
     try:
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
-        
-        # 3. Đồng bộ với RocketChat (Tạo user, login, tạo room)
-        new_user = auth_service.sync_rocketchat_user(db, new_user, user_in.password)
-        
+
         return new_user
     except Exception as e:
         db.rollback()
@@ -62,10 +77,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Tài khoản đã bị khóa")
 
-    # 2. Đồng bộ/Cập nhật RocketChat session
-    user = auth_service.sync_rocketchat_user(db, user, form_data.password)
-
-    # 3. Sinh JWT token của hệ thống
+    # 2. Sinh JWT token của hệ thống
     access_token = auth_service.create_access_token(
         data={"sub": str(user.id), "role": user.role.value}
     )
@@ -76,8 +88,21 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         "role": user.role.value,
         "full_name": user.full_name,
         "email": user.email,
-        "rc_user_id": user.rc_user_id,
-        "rc_auth_token": user.rc_auth_token,
+        "rc_room_id": user.rc_room_id,
+        "rc_visitor_token": user.rc_visitor_token,
+    }
+
+
+@router.post("/init-chat-room")
+def init_chat_room(
+    current_user: User = Depends(_get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Tạo hoặc lấy lại Livechat room. Gọi khi user mở màn hình chatbot."""
+    user = auth_service.init_livechat_room(db, current_user)
+    if not user.rc_room_id:
+        raise HTTPException(status_code=500, detail="Không thể tạo phòng chat")
+    return {
         "rc_room_id": user.rc_room_id,
         "rc_visitor_token": user.rc_visitor_token,
     }

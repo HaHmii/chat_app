@@ -131,29 +131,20 @@ def search_properties(
 
     if nearby_mode:
         query_obj = query_obj.filter(Property.gps.isnot(None))
-    else:
-        if q:
-            pattern = f"%{q}%"
-            query_obj = query_obj.filter(
+
+    if district:
+        dist_row = (
+            db.query(District)
+            .filter(
                 or_(
-                    Property.title.ilike(pattern),
-                    Property.description.ilike(pattern),
-                    Property.address.ilike(pattern),
+                    District.name.ilike(f"%{district}%"),
+                    District.short_name.ilike(f"%{district}%"),
                 )
             )
-        if district:
-            dist_row = (
-                db.query(District)
-                .filter(
-                    or_(
-                        District.name.ilike(f"%{district}%"),
-                        District.short_name.ilike(f"%{district}%"),
-                    )
-                )
-                .first()
-            )
-            if dist_row:
-                query_obj = query_obj.filter(Property.district_id == dist_row.id)
+            .first()
+        )
+        if dist_row:
+            query_obj = query_obj.filter(Property.district_id == dist_row.id)
 
     if property_type:
         try:

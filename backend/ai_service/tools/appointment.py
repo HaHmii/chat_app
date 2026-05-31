@@ -101,7 +101,7 @@ class AppointmentTool(BaseTool):
                 resp = httpx.patch(
                     f"{settings.web_service_url}/appointments/{appointment_id}/cancel",
                     json={
-                        "cancelled_by": "guest",
+                        "cancelled_by": "user",
                         "cancel_reason": note or "Người dùng yêu cầu hủy lịch",
                     },
                     headers=headers,

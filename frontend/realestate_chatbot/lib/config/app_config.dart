@@ -7,8 +7,6 @@ class AppConfig {
   static String get botUsername => dotenv.env['RC_BOT_USERNAME'] ?? 'bot.ai';
 
   // Dynamic values stored after login
-  static String? userId;
-  static String? authToken;
   static String? roomId;
   // Livechat visitor token (= username) — dùng để auth DDP và gửi tin Livechat
   static String? visitorToken;
@@ -20,13 +18,9 @@ class AppConfig {
   static String? role; // 'admin', 'staff', 'owner', 'guest'
 
   static void setRCAuth({
-    required String? uid,
-    required String? token,
     required String? rid,
     String? vtoken,
   }) {
-    userId = uid;
-    authToken = token;
     roomId = rid;
     visitorToken = vtoken;
   }

@@ -60,8 +60,7 @@ class MessageModel {
     }
 
     // Livechat visitor messages carry a `token` field; agent/bot messages do not.
-    final isMe = (json['token'] != null && json['token'] == AppConfig.visitorToken) ||
-        senderId == AppConfig.userId;
+    final isMe = json['token'] != null && json['token'] == AppConfig.visitorToken;
 
     return MessageModel(
       id: json['_id'] ?? '',

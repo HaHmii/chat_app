@@ -45,6 +45,22 @@ class PropertyReview(BaseModel):
     action: str  # 'approved' | 'rejected'
     rejection_reason: Optional[str] = None
 
+class PropertyUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=10, max_length=500)
+    description: Optional[str] = None
+    type: Optional[PropertyType] = None
+    category: Optional[PropertyCategory] = None
+    address: Optional[str] = Field(None, min_length=5)
+    district_id: Optional[int] = None
+    ward: Optional[str] = None
+    street: Optional[str] = None
+    price: Optional[float] = Field(None, gt=0)
+    price_unit: Optional[str] = None
+    area: Optional[float] = Field(None, gt=0)
+    bedrooms: Optional[int] = Field(None, ge=0)
+    bathrooms: Optional[int] = Field(None, ge=0)
+    direction: Optional[str] = None
+
 class PropertyCreate(BaseModel):
     title: str = Field(..., min_length=10, max_length=500)
     description: Optional[str] = None
@@ -114,6 +130,59 @@ class PropertyService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Lỗi hệ thống khi đăng tin: {str(e)}"
             )
+
+    def get_my_properties(self, db: Session, current_user: User) -> list:
+        return (
+            db.query(Property)
+            .filter(Property.owner_id == current_user.id)
+            .order_by(Property.created_at.desc())
+            .all()
+        )
+
+    def update_property(self, db: Session, property_id: int, update_in: PropertyUpdate, current_user: User) -> Property:
+        prop = db.query(Property).filter(Property.id == property_id).first()
+        if not prop:
+            raise HTTPException(status_code=404, detail="Không tìm thấy tin đăng")
+        if prop.owner_id != current_user.id and current_user.role != UserRole.admin:
+            raise HTTPException(status_code=403, detail="Bạn không có quyền chỉnh sửa tin này")
+
+        update_data = update_in.model_dump(exclude_unset=True)
+        needs_geocode = 'address' in update_data
+
+        for field, value in update_data.items():
+            setattr(prop, field, value)
+
+        if needs_geocode:
+            prop.gps = _geocode_address(prop.address)
+
+        prop.status = PropertyStatus.pending
+        prop.rejection_reason = None
+
+        try:
+            db.commit()
+            db.refresh(prop)
+            logger.info(f"User {current_user.username} updated property {property_id}")
+            return prop
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error updating property {property_id}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Lỗi hệ thống khi cập nhật tin")
+
+    def delete_property(self, db: Session, property_id: int, current_user: User) -> None:
+        prop = db.query(Property).filter(Property.id == property_id).first()
+        if not prop:
+            raise HTTPException(status_code=404, detail="Không tìm thấy tin đăng")
+        if prop.owner_id != current_user.id and current_user.role != UserRole.admin:
+            raise HTTPException(status_code=403, detail="Bạn không có quyền xóa tin này")
+
+        try:
+            db.delete(prop)
+            db.commit()
+            logger.info(f"User {current_user.username} deleted property {property_id}")
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error deleting property {property_id}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Lỗi hệ thống khi xóa tin")
 
     def get_pending_properties(self, db: Session) -> list:
         return (

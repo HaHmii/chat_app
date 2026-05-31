@@ -28,11 +28,11 @@ class ResolveRequest(BaseModel):
 class EvalRequest(BaseModel):
     user_message: str
     pipeline: str = "router"
-    expected_intent: str | None = None
-    expected_keywords: list[str] | None = None
-    expected_slots: dict | None = None
     is_multi_turn: bool = False
     turn_history: list[dict] | None = None
+    user_token: str | None = None
+    last_intent: str | None = None
+    extracted_slots: dict | None = None
 
 class EvalResponse(BaseModel):
     response: str
@@ -42,7 +42,8 @@ class EvalResponse(BaseModel):
     retrieved_context: str | None
     latency_ms: int | None
     llm_tokens_used: int | None
-    eval_expected_intent: str | None
-    eval_expected_keywords: list[str] | None
-    eval_expected_slots: dict | None
-    eval_is_multi_turn: bool
+    llm_calls: int | None = None
+    raw_items: list | None = None
+    total_items_found: int | None = None  # tổng BĐS DB trả về (trước khi cắt batch)
+    should_escalate: bool = False
+    extracted_slots: dict | None = None

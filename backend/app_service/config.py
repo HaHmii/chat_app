@@ -8,8 +8,6 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 10080
     internal_api_key: str = "ai-internal-key-change-me"
     rc_base_url: str
-    rc_user_id: str           # admin user ID — dùng để quản trị (tạo user, v.v.)
-    rc_auth_token: str        # admin auth token
     rc_bot_username: str
     rc_bot_user_id: str       # bot user ID
     rc_bot_auth_token: str    # bot auth token — dùng để set livechat status

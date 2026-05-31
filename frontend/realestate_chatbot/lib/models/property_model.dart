@@ -27,6 +27,9 @@ class Property {
   final DateTime? createdAt;
   final DateTime? expiresAt;
   final int? viewCount;
+  final String? status;
+  final int? districtId;
+  final String? rejectionReason;
 
   const Property({
     required this.id,
@@ -57,6 +60,9 @@ class Property {
     this.createdAt,
     this.expiresAt,
     this.viewCount,
+    this.status,
+    this.districtId,
+    this.rejectionReason,
   });
 
   factory Property.fromJson(Map<String, dynamic> json) {
@@ -106,6 +112,9 @@ class Property {
           ? DateTime.tryParse(json['expires_at'] as String)
           : null,
       viewCount: json['view_count'] as int?,
+      status: json['status'] as String?,
+      districtId: json['district_id'] as int?,
+      rejectionReason: json['rejection_reason'] as String?,
     );
   }
 }
