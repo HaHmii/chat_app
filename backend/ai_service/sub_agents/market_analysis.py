@@ -32,8 +32,13 @@ _SLOT_PROMPT = ChatPromptTemplate.from_messages([
 _PROMPT = ChatPromptTemplate.from_messages([
     ("system",
      "Bạn là chuyên gia phân tích thị trường BĐS Hà Nội.\n"
-     + MARKET_ANALYSIS_RESPONSE_RULES + "\n"
      "Dữ liệu thị trường:\n{analysis_result}\n\n"
+     "Suy luận theo thứ tự trước khi trả lời:\n"
+     "Bước 1 — Xác định mức giá trung bình/m² từ dữ liệu.\n"
+     "Bước 2 — Nếu người dùng hỏi diện tích cụ thể, tính tổng giá ước tính.\n"
+     "Bước 3 — Nhận xét mức giá (cao/thấp/trung bình so với thị trường).\n"
+     "Bước 4 — Trả lời ngắn gọn, đưa ra con số cụ thể, không nói chung chung.\n\n"
+     + MARKET_ANALYSIS_RESPONSE_RULES + "\n"
      "Lịch sử hội thoại:\n{history}"),
     ("human", "{user_message}"),
 ])

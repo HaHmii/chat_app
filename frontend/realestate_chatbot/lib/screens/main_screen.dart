@@ -58,6 +58,42 @@ class _MainScreenState extends State<MainScreen> {
   final _myPropertiesKey = GlobalKey<MyPropertiesScreenState>();
   final _appointmentKey = GlobalKey<AppointmentScreenState>();
 
+  bool _isSearching = false;
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _startSearch() {
+    setState(() {
+      _isSearching = true;
+      _searchQuery = '';
+      _searchController.clear();
+    });
+  }
+
+  void _stopSearch() {
+    setState(() {
+      _isSearching = false;
+      _searchQuery = '';
+      _searchController.clear();
+    });
+  }
+
+  List<Property> _applySearch(List<Property> all) {
+    if (_searchQuery.isEmpty) return all;
+    final q = _searchQuery.toLowerCase();
+    return all.where((p) {
+      return p.title.toLowerCase().contains(q) ||
+          p.address.toLowerCase().contains(q) ||
+          (p.districtName?.toLowerCase().contains(q) ?? false);
+    }).toList();
+  }
+
   bool get isOwner => AppConfig.role == 'owner';
   bool get isAdmin => AppConfig.role == 'admin';
 
@@ -154,29 +190,50 @@ class _MainScreenState extends State<MainScreen> {
       appBar: _selectedIndex == _profileIndex
           ? null
           : AppBar(
-              title: Text(
-                _appBarTitle,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
+              leading: _isSearching && _selectedIndex == 0
+                  ? IconButton(
+                      icon: const Icon(Icons.arrow_back),
+                      onPressed: _stopSearch,
+                    )
+                  : null,
+              title: _isSearching && _selectedIndex == 0
+                  ? TextField(
+                      controller: _searchController,
+                      autofocus: true,
+                      style: const TextStyle(color: Colors.white),
+                      cursorColor: Colors.white,
+                      decoration: const InputDecoration(
+                        hintText: 'Tìm theo tên, địa chỉ, quận...',
+                        hintStyle: TextStyle(color: Colors.white70),
+                        border: InputBorder.none,
+                      ),
+                      onChanged: (v) => setState(() => _searchQuery = v),
+                    )
+                  : Text(
+                      _appBarTitle,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
               centerTitle: false,
               backgroundColor: colorScheme.primary,
               iconTheme: const IconThemeData(color: Colors.white),
               actions: [
-                IconButton(
-                  icon: const Icon(Icons.search),
-                  onPressed: () => _showComingSoon(context, 'Tìm kiếm'),
-                ),
-                Badge(
-                  isLabelVisible: _activeFilter.activeCount > 0,
-                  label: Text('${_activeFilter.activeCount}'),
-                  child: IconButton(
-                    icon: const Icon(Icons.filter_list),
-                    onPressed: _showFilterSheet,
+                if (_selectedIndex == 0)
+                  IconButton(
+                    icon: Icon(_isSearching ? Icons.close : Icons.search),
+                    onPressed: _isSearching ? _stopSearch : _startSearch,
                   ),
-                ),
+                if (!_isSearching)
+                  Badge(
+                    isLabelVisible: _activeFilter.activeCount > 0,
+                    label: Text('${_activeFilter.activeCount}'),
+                    child: IconButton(
+                      icon: const Icon(Icons.filter_list),
+                      onPressed: _showFilterSheet,
+                    ),
+                  ),
               ],
             ),
       body: IndexedStack(
@@ -342,7 +399,23 @@ class _MainScreenState extends State<MainScreen> {
                   return _buildEmptyState();
                 }
 
-                final properties = snapshot.data!;
+                final properties = _applySearch(snapshot.data!);
+                if (properties.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Không tìm thấy kết quả cho "$_searchQuery"',
+                          style: TextStyle(color: Colors.grey[600]),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  );
+                }
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -379,12 +452,6 @@ class _MainScreenState extends State<MainScreen> {
           );
         },
       ),
-    );
-  }
-
-  void _showComingSoon(BuildContext context, String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Chức năng $feature đang phát triển')),
     );
   }
 
